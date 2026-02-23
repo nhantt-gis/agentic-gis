@@ -108,7 +108,6 @@ Open: `http://localhost:3000/maps`
 - `Công ty GTEL OTS ở tỉnh thành nào?`
 - `Tìm bãi gửi xe gần chợ Bến Thành`
 - `Chỉ lấy các bãi gửi xe trên 4 sao`
-- `Tìm quán cafe gần đây trong bán kính 1000m`
 - `Chỉ đường từ vị trí hiện tại đến sân bay Tân Sơn Nhất bằng xe máy`
 - `Tôi đang ở đâu?`
 
@@ -182,10 +181,13 @@ components/
 
 ## 🗺️ Roadmap
 
-- [ ] **Streaming responses** — Stream LLM output token-by-token for real-time UX
-- [x] **Routing & directions** — Integrate OSRM or Valhalla for turn-by-turn navigation
-- [x] **POI search** — Overpass API integration for "find all hospitals near me"
-- [x] **Voice input** — Speech-to-text for hands-free map control
+- [x] Context caching
+- [x] BE tool call execution
+- [ ] FE tool call execution + map updates
+- [x] Voice input
+- [x] Routing & directions
+- [x] Nearby search
+- [x] Geocoding
 
 ---
 
