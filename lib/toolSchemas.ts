@@ -1,0 +1,147 @@
+/**
+ * toolSchemas.ts
+ *
+ * JSON Schema definitions for all Map Copilot tools.
+ * These schemas are sent to the chat API so the model can choose
+ * which tool to invoke based on the user's natural-language request.
+ */
+
+import type { ChatCompletionTool } from 'openai/resources/chat/completions';
+
+export const MAP_TOOL_SCHEMAS: ChatCompletionTool[] = [
+  // ──────────────────────────────────────────────
+  // Navigation Tools
+  // ──────────────────────────────────────────────
+  {
+    type: 'function',
+    function: {
+      name: 'searchPlace',
+      description:
+        'Search for a place by name and fly the map there. ' +
+        'Internally uses Google Places Text Search API to return richer place metadata (name, address, rating, photo). ' +
+        'Accepts any place name, address, or landmark.',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: {
+            type: 'string',
+            description: 'The place name or address to search (e.g. "Ben Thanh Market", "Hanoi").',
+          },
+        },
+        required: ['query'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'getDirections',
+      description:
+        'Find directions between two places with selected transport mode and draw the route on the map. ' +
+        'Internally uses Google Directions API.',
+      parameters: {
+        type: 'object',
+        properties: {
+          from: {
+            type: 'string',
+            description:
+              'Starting place or address (e.g. "Noi Bai Airport"). Can also be "vị trí hiện tại" / "my location".',
+          },
+          to: {
+            type: 'string',
+            description:
+              'Destination place or address (e.g. "Hoan Kiem Lake"). Can also be "vị trí hiện tại" / "my location".',
+          },
+          mode: {
+            type: 'string',
+            description:
+              'Transport mode. Use one of: "driving", "walking", "bicycling", "transit", "motorbike". ' +
+              'If omitted, default is "driving".',
+            enum: ['driving', 'walking', 'bicycling', 'transit', 'motorbike'],
+          },
+        },
+        required: ['from', 'to'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'nearbySearch',
+      description:
+        'Find nearby places around a location using Google Places Nearby Search. ' +
+        'Use keyword and/or place type, with optional radius. ' +
+        'The map should display nearby markers and a radius buffer area. ' +
+        'At least one of keyword or type should be provided.',
+      parameters: {
+        type: 'object',
+        properties: {
+          keyword: {
+            type: 'string',
+            description: 'Free-text keyword to search nearby (e.g. "cruise", "coffee", "sushi").',
+          },
+          type: {
+            type: 'string',
+            description:
+              'Google place type filter. Example: "restaurant", "cafe", "hospital", "atm", "hotel".',
+            enum: [
+              'restaurant',
+              'cafe',
+              'hotel',
+              'hospital',
+              'school',
+              'atm',
+              'pharmacy',
+              'bank',
+              'store',
+              'gas_station',
+              'tourist_attraction',
+              'airport',
+              'shopping_mall',
+              'supermarket',
+            ],
+          },
+          location: {
+            type: 'string',
+            description:
+              'Center location text. Can be a place name/address, "vị trí hiện tại" / "my location". If omitted, use current map center.',
+          },
+          radius: {
+            type: 'number',
+            description: 'Search radius in meters (100-50000). Default 1000.',
+          },
+        },
+        required: [],
+      },
+    },
+  },
+
+  // ──────────────────────────────────────────────
+  // Map Utilities
+  // ──────────────────────────────────────────────
+  {
+    type: 'function',
+    function: {
+      name: 'getUserLocation',
+      description:
+        "Get and fly to the user's current GPS location using the browser Geolocation API.",
+      parameters: {
+        type: 'object',
+        properties: {},
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'getMapCenter',
+      description: 'Return the current center coordinates (lng, lat) and zoom level of the map.',
+      parameters: {
+        type: 'object',
+        properties: {},
+        required: [],
+      },
+    },
+  },
+];
