@@ -69,6 +69,12 @@ interface Props {
   mapRef: React.RefObject<MaplibreMap | null>;
 }
 
+interface AgentApiMessage {
+  role: 'user' | 'assistant' | 'system' | 'tool';
+  content: string;
+  tool_call_id?: string;
+}
+
 function combineVoiceAndTypedInput(baseText: string, transcript: string): string {
   const base = baseText.trim();
   const speech = transcript.trim();
@@ -84,7 +90,7 @@ export default function MapCopilot({ mapRef }: Props) {
       id: generateId(),
       role: 'assistant',
       content:
-        '👋 Chào bạn! Mình là GTEL Maps Copilot.\nMình có thể giúp bạn tìm địa điểm, chỉ đường theo phương tiện và tìm địa điểm lân cận.\n\nBạn có thể thử: "Tìm quán cà phê gần đây trong bán kính 1000m".',
+        '👋 Chào bạn! Mình là GTEL Maps Copilot.\nMình có thể giúp bạn tìm địa điểm, chỉ đường theo phương tiện và tìm địa điểm lân cận.\n\nBạn có thể thử: "Tìm quán cà phê gần đây".',
       timestamp: Date.now(),
     },
   ]);
@@ -119,6 +125,21 @@ export default function MapCopilot({ mapRef }: Props) {
   }, [isOpen]);
 
   // ── Send Message ─────────────────────────────────────────────────
+
+  const callMapAgent = useCallback(async (messages: AgentApiMessage[], responseOnly = false) => {
+    const response = await fetch('/api/map-agent', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages, responseOnly }),
+    });
+
+    const data: AgentResponse & { error?: string } = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || 'Không thể gọi API.');
+    }
+
+    return data;
+  }, []);
 
   const sendMessage = useCallback(
     async (userText: string) => {
@@ -161,28 +182,25 @@ export default function MapCopilot({ mapRef }: Props) {
 
       try {
         // Build conversation history for the API
-        const apiMessages = [...messages, userMsg]
+        const apiMessages: AgentApiMessage[] = [...messages, userMsg]
           .filter((m) => !m.isLoading && !m.toolCall && !m.toolResult)
           .map((m) => ({
             role: m.role,
             content: m.content,
           }));
 
-        // Call the Map Agent API
-        const response = await fetch('/api/map-agent', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ messages: apiMessages }),
-        });
-
-        const data: AgentResponse & { error?: string } = await response.json();
-
-        if (!response.ok) {
-          throw new Error(data.error || 'Không thể gọi API.');
-        }
+        // First pass: tool planning
+        const data = await callMapAgent(apiMessages, false);
 
         // Remove loading indicator
         setMessages((prev) => prev.filter((m) => m.id !== loadingMsg.id));
+
+        const executedTools: Array<{
+          id?: string;
+          name: string;
+          arguments: Record<string, unknown>;
+          result: ToolResult;
+        }> = [];
 
         // Process tool calls
         if (data.toolCalls && data.toolCalls.length > 0) {
@@ -202,6 +220,12 @@ export default function MapCopilot({ mapRef }: Props) {
 
             // Execute the tool
             const result: ToolResult = await executeTool(map, toolCall.name, toolCall.arguments);
+            executedTools.push({
+              id: toolCall.id,
+              name: toolCall.name,
+              arguments: toolCall.arguments,
+              result,
+            });
 
             // Show tool result
             const toolResultMsg: ChatMessage = {
@@ -215,14 +239,41 @@ export default function MapCopilot({ mapRef }: Props) {
           }
         }
 
+        let finalReply = data.reply?.trim() || '';
+
+        // Second pass: AI summarizes grounded answer from tool outputs.
+        if (executedTools.length > 0) {
+          const groundedPrompt = `Yêu cầu gần nhất của người dùng: "${userText}".
+            Dữ liệu công cụ vừa chạy:
+            ${JSON.stringify(executedTools, null, 2)}
+            Hãy trả lời đúng trọng tâm yêu cầu gần nhất dựa trên dữ liệu này.`;
+
+          try {
+            const grounded = await callMapAgent(
+              [
+                ...apiMessages,
+                { role: 'assistant', content: 'Đã thực thi công cụ và có dữ liệu kết quả.' },
+                { role: 'user', content: groundedPrompt },
+              ],
+              true,
+            );
+
+            if (grounded.reply?.trim()) {
+              finalReply = grounded.reply.trim();
+            }
+          } catch (error) {
+            console.error('[map-copilot] response-only synthesis error:', error);
+          }
+        }
+
         // Show assistant text reply if any
-        if (data.reply) {
+        if (finalReply) {
           setMessages((prev) => [
             ...prev,
             {
               id: generateId(),
               role: 'assistant',
-              content: data.reply,
+              content: finalReply,
               timestamp: Date.now(),
             },
           ]);
@@ -245,7 +296,7 @@ export default function MapCopilot({ mapRef }: Props) {
         setIsLoading(false);
       }
     },
-    [messages, isLoading, mapRef],
+    [messages, isLoading, mapRef, callMapAgent],
   );
 
   useEffect(() => {
@@ -377,7 +428,9 @@ export default function MapCopilot({ mapRef }: Props) {
     } catch (error) {
       autoSendVoiceRef.current = false;
       setVoiceError(
-        error instanceof Error ? `Không thể bật voice input: ${error.message}` : 'Không thể bật voice input.',
+        error instanceof Error
+          ? `Không thể bật voice input: ${error.message}`
+          : 'Không thể bật voice input.',
       );
     }
   }, [input, isLoading]);
@@ -412,10 +465,10 @@ export default function MapCopilot({ mapRef }: Props) {
   // ── Quick Commands ───────────────────────────────────────────────
 
   const quickCommands = [
-    'Phóng to Tp Hồ Chí Minh',
-    'Tìm chợ Bến Thành',
-    'Tìm quán cà phê gần đây trong bán kính 1000m',
-    'Chỉ đường từ Bến Thành đến sân bay Tân Sơn Nhất',
+    'Công ty GTEL OTS ở tỉnh thành nào?',
+    'Vị trí hiện tại của tôi?',
+    'Chỉ đường đến sân bay Tân Sơn Nhất',
+    'Quán cafe gần nhất',
   ];
 
   // ── Render ───────────────────────────────────────────────────────

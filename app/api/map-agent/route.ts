@@ -10,7 +10,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createHash } from 'node:crypto';
 import OpenAI from 'openai';
 import { MAP_TOOL_SCHEMAS } from '@/lib/toolSchemas';
-import { SYSTEM_PROMPT } from '@/lib/openai';
+import { REQUEST_PROMPT, RESPONSE_PROMPT } from '@/lib/openai';
 
 // ── OpenRouter Client (lazy initialization to avoid build-time errors) ──
 
@@ -58,6 +58,7 @@ interface IncomingMessage {
 
 interface RequestBody {
   messages: IncomingMessage[];
+  responseOnly?: boolean;
 }
 
 interface ToolCallPayload {
@@ -96,7 +97,6 @@ function safeParseJsonObject(input: string): Record<string, unknown> {
 function buildCacheKey(messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[]): string {
   const payload = JSON.stringify({
     model: OPENROUTER_MODEL,
-    systemPrompt: SYSTEM_PROMPT,
     messages,
   });
 
@@ -191,9 +191,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const responseOnly = body.responseOnly === true;
+    const systemPrompt = responseOnly ? RESPONSE_PROMPT : REQUEST_PROMPT;
+
     // Build conversation for OpenRouter
     const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
-      { role: 'system', content: SYSTEM_PROMPT },
+      { role: 'system', content: systemPrompt },
       ...body.messages.map((m) => {
         if (m.role === 'tool') {
           return {
@@ -230,15 +233,21 @@ export async function POST(request: NextRequest) {
     }
 
     const completionPromise = (async (): Promise<AgentRoutePayload> => {
-      // Call OpenRouter with function-calling
-      const completion = await getOpenRouterClient(apiKey).chat.completions.create({
-        model: OPENROUTER_MODEL,
-        messages,
-        tools: MAP_TOOL_SCHEMAS,
-        tool_choice: 'auto',
-        temperature: 0.1,
-        max_tokens: 1024,
-      });
+      const completion = responseOnly
+        ? await getOpenRouterClient(apiKey).chat.completions.create({
+            model: OPENROUTER_MODEL,
+            messages,
+            temperature: 0.1,
+            max_tokens: 256,
+          })
+        : await getOpenRouterClient(apiKey).chat.completions.create({
+            model: OPENROUTER_MODEL,
+            messages,
+            tools: MAP_TOOL_SCHEMAS,
+            tool_choice: 'auto',
+            temperature: 0.1,
+            max_tokens: 1024,
+          });
 
       const choice = completion.choices[0];
 
@@ -247,11 +256,13 @@ export async function POST(request: NextRequest) {
       }
 
       // Extract tool calls if any
-      const toolCalls = (choice.message.tool_calls || []).map((tc) => ({
-        id: tc.id,
-        name: tc.function.name,
-        arguments: safeParseJsonObject(tc.function.arguments),
-      }));
+      const toolCalls = responseOnly
+        ? []
+        : (choice.message.tool_calls || []).map((tc) => ({
+            id: tc.id,
+            name: tc.function.name,
+            arguments: safeParseJsonObject(tc.function.arguments),
+          }));
 
       return {
         reply: choice.message.content || '',

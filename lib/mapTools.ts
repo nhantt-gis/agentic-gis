@@ -338,7 +338,7 @@ function buildPopupHtml(place: {
       ? `<div style="margin-top:2px;font-size:12px;color:#6B7280;">Cách ${(place.distanceMeters / 1000).toFixed(2)} km</div>`
       : '';
 
-  return `<div style="width:350px;background:#FFFFFF;">
+  return `<div style="background:#FFFFFF;">
     ${imageSection}
     <div style="padding:12px 14px 14px;">
       <div style="font-size:20px;line-height:1.25;font-weight:600;color:#111827;word-break:break-word;">${safeName}</div>

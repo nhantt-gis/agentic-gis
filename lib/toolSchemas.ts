@@ -25,7 +25,9 @@ export const MAP_TOOL_SCHEMAS: ChatCompletionTool[] = [
         properties: {
           query: {
             type: 'string',
-            description: 'The place name or address to search (e.g. "Ben Thanh Market", "Hanoi").',
+            description:
+              'The place name or address to search (e.g. "Ben Thanh Market", "Hanoi"). ' +
+              'If user asks province/city, pass only the entity/place name in query (do not pass full question).',
           },
         },
         required: ['query'],
