@@ -192,9 +192,6 @@ export default function MapCopilot({ mapRef }: Props) {
         // First pass: tool planning
         const data = await callMapAgent(apiMessages, false);
 
-        // Remove loading indicator
-        setMessages((prev) => prev.filter((m) => m.id !== loadingMsg.id));
-
         const executedTools: Array<{
           id?: string;
           name: string;
@@ -205,19 +202,6 @@ export default function MapCopilot({ mapRef }: Props) {
         // Process tool calls
         if (data.toolCalls && data.toolCalls.length > 0) {
           for (const toolCall of data.toolCalls) {
-            // Show tool call log
-            const toolCallMsg: ChatMessage = {
-              id: generateId(),
-              role: 'assistant',
-              content: '',
-              timestamp: Date.now(),
-              toolCall: {
-                name: toolCall.name,
-                arguments: toolCall.arguments,
-              },
-            };
-            setMessages((prev) => [...prev, toolCallMsg]);
-
             // Execute the tool
             const result: ToolResult = await executeTool(map, toolCall.name, toolCall.arguments);
             executedTools.push({
@@ -226,16 +210,6 @@ export default function MapCopilot({ mapRef }: Props) {
               arguments: toolCall.arguments,
               result,
             });
-
-            // Show tool result
-            const toolResultMsg: ChatMessage = {
-              id: generateId(),
-              role: 'assistant',
-              content: '',
-              timestamp: Date.now(),
-              toolResult: result,
-            };
-            setMessages((prev) => [...prev, toolResultMsg]);
           }
         }
 
@@ -265,6 +239,18 @@ export default function MapCopilot({ mapRef }: Props) {
             console.error('[map-copilot] response-only synthesis error:', error);
           }
         }
+
+        if (!finalReply) {
+          const failedTool = executedTools.find((item) => !item.result.success);
+          if (failedTool) {
+            finalReply = failedTool.result.message;
+          } else if (executedTools.length > 0) {
+            finalReply = 'Mình đã xử lý xong yêu cầu trên bản đồ.';
+          }
+        }
+
+        // Remove loading indicator
+        setMessages((prev) => prev.filter((m) => m.id !== loadingMsg.id));
 
         // Show assistant text reply if any
         if (finalReply) {
