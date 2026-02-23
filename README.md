@@ -139,16 +139,30 @@ Open: `http://localhost:3000/maps`
 
 ```text
 app/
-  api/map-agent/route.ts
-  maps/page.tsx
-components/
-  MapView.tsx
-  MapCopilot.tsx
-  ChatMessage.tsx
+  api/map-agent/route.ts   ← OpenRouter API endpoint (cache + inflight dedup)
+  maps/page.tsx            ← full-screen map + chat panel
+types/
+  index.ts                ← shared TypeScript types (ChatMessage, ToolResult, ...)
+hooks/
+  useSpeechRecognition.ts ← Web Speech API hook (extracted from MapCopilot)
 lib/
-  mapTools.ts
-  toolSchemas.ts
-  openai.ts
+  prompts.ts              ← REQUEST_PROMPT and RESPONSE_PROMPT
+  toolSchemas.ts          ← OpenAI function-calling schemas
+  cache.ts                ← in-memory LRU + TTL cache with inflight deduplication
+  utils.ts                ← shared utilities (generateId, ...)
+  map/
+    constants.ts          ← API URLs, layer IDs, defaults, labels
+    state.ts              ← shared mutable map state (markers, nearby context)
+    geo.ts                ← pure geo helpers (haversine, polyline decode, buffer, ...)
+    google-api.ts         ← Google Places / Directions API calls
+    popup.ts              ← HTML rendering for popups and marker elements
+    visuals.ts            ← MapLibre layer/source and marker management
+    tools.ts              ← tool implementations (searchPlace, getDirections, ...)
+    index.ts              ← public re-exports for map module
+components/
+  MapView.tsx             ← react-map-gl map with controls
+  MapCopilot.tsx          ← floating chat panel
+  ChatMessage.tsx         ← single message bubble (memoized)
 ```
 
 ---
@@ -156,12 +170,13 @@ lib/
 ## 🛠️ Tech Stack
 
 - Next.js 14 (App Router)
-- TypeScript
-- Tailwind CSS
-- React Map GL + MapLibre GL JS
-- Google Places (Text Search + Nearby Search)
+- TypeScript 5 (strict)
+- Tailwind CSS v4
+- React Map GL + MapLibre GL JS v5
+- Google Places API (Text Search + Nearby Search)
 - Google Directions API
 - OpenRouter (OpenAI-compatible chat completions)
+- Web Speech API (voice input)
 
 ---
 

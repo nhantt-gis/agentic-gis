@@ -1,145 +1,124 @@
 /**
  * MapCopilot.tsx
  *
- * The floating chat panel that lets users control the map via natural language.
- * Sends messages to /api/map-agent, receives tool calls, and executes them
- * against the MapLibre map instance.
- *
- * Styled with Tailwind CSS.
+ * Floating chat panel for controlling the map via natural language.
+ * Sends messages to /api/map-agent, receives tool calls, and executes
+ * them against the MapLibre map instance.
  */
 
 'use client';
 
 import React, { useState, useRef, useEffect, useCallback, type FormEvent } from 'react';
 import type { Map as MaplibreMap } from 'maplibre-gl';
+
 import ChatMessageComponent from './ChatMessage';
-import { ChatMessage, AgentResponse, generateId } from '@/lib/openai';
-import { executeTool, ToolResult } from '@/lib/mapTools';
+import { useSpeechRecognition } from '@/hooks/useSpeechRecognition';
+import type { ChatMessage, AgentResponse, AgentApiMessage, ToolResult } from '@/types';
+import { generateId } from '@/lib/utils';
+import { executeTool } from '@/lib/map';
 
-interface SpeechRecognitionAlternativeLike {
-  transcript: string;
-  confidence: number;
+// ── Constants ────────────────────────────────────────────────────────
+
+const WELCOME_MESSAGE: ChatMessage = {
+  id: 'welcome',
+  role: 'assistant',
+  content:
+    '👋 Chào bạn! Mình là GTEL Maps Copilot.\nMình có thể giúp bạn tìm địa điểm, chỉ đường theo phương tiện và tìm địa điểm lân cận.\n\nBạn có thể thử: "Tìm quán cà phê gần đây".',
+  timestamp: Date.now(),
+};
+
+const QUICK_COMMANDS = [
+  'Công ty GTEL OTS ở tỉnh thành nào?',
+  'Vị trí hiện tại của tôi?',
+  'Chỉ đường đến sân bay Tân Sơn Nhất',
+  'Quán cafe gần nhất',
+] as const;
+
+// ── Icons ────────────────────────────────────────────────────────────
+
+function MicIcon() {
+  return (
+    <svg
+      width='16'
+      height='16'
+      viewBox='0 0 24 24'
+      fill='none'
+      stroke='currentColor'
+      strokeWidth='2'
+      strokeLinecap='round'
+      strokeLinejoin='round'
+    >
+      <path d='M12 1a3 3 0 0 0-3 3v8a3 3 0 1 0 6 0V4a3 3 0 0 0-3-3z' />
+      <path d='M19 10v2a7 7 0 0 1-14 0v-2' />
+      <line x1='12' y1='19' x2='12' y2='23' />
+      <line x1='8' y1='23' x2='16' y2='23' />
+    </svg>
+  );
 }
 
-interface SpeechRecognitionResultLike {
-  isFinal: boolean;
-  length: number;
-  [index: number]: SpeechRecognitionAlternativeLike;
+function SendIcon() {
+  return (
+    <svg
+      width='18'
+      height='18'
+      viewBox='0 0 24 24'
+      fill='none'
+      stroke='currentColor'
+      strokeWidth='2'
+      strokeLinecap='round'
+      strokeLinejoin='round'
+    >
+      <line x1='22' y1='2' x2='11' y2='13' />
+      <polygon points='22 2 15 22 11 13 2 9 22 2' />
+    </svg>
+  );
 }
 
-interface SpeechRecognitionResultListLike {
-  length: number;
-  [index: number]: SpeechRecognitionResultLike;
-}
+// ── Props ────────────────────────────────────────────────────────────
 
-interface SpeechRecognitionEventLike extends Event {
-  resultIndex: number;
-  results: SpeechRecognitionResultListLike;
-}
-
-interface SpeechRecognitionErrorEventLike extends Event {
-  error: string;
-  message: string;
-}
-
-interface SpeechRecognitionLike extends EventTarget {
-  lang: string;
-  continuous: boolean;
-  interimResults: boolean;
-  maxAlternatives: number;
-  onstart: ((this: SpeechRecognitionLike, ev: Event) => unknown) | null;
-  onend: ((this: SpeechRecognitionLike, ev: Event) => unknown) | null;
-  onresult: ((this: SpeechRecognitionLike, ev: SpeechRecognitionEventLike) => unknown) | null;
-  onerror: ((this: SpeechRecognitionLike, ev: SpeechRecognitionErrorEventLike) => unknown) | null;
-  start: () => void;
-  stop: () => void;
-  abort: () => void;
-}
-
-type SpeechRecognitionCtorLike = new () => SpeechRecognitionLike;
-
-declare global {
-  interface Window {
-    SpeechRecognition?: SpeechRecognitionCtorLike;
-    webkitSpeechRecognition?: SpeechRecognitionCtorLike;
-  }
-}
-
-interface Props {
+interface MapCopilotProps {
   mapRef: React.RefObject<MaplibreMap | null>;
 }
 
-interface AgentApiMessage {
-  role: 'user' | 'assistant' | 'system' | 'tool';
-  content: string;
-  tool_call_id?: string;
-}
+// ── Component ────────────────────────────────────────────────────────
 
-function combineVoiceAndTypedInput(baseText: string, transcript: string): string {
-  const base = baseText.trim();
-  const speech = transcript.trim();
-
-  if (!base) return speech;
-  if (!speech) return base;
-  return `${base} ${speech}`;
-}
-
-export default function MapCopilot({ mapRef }: Props) {
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: generateId(),
-      role: 'assistant',
-      content:
-        '👋 Chào bạn! Mình là GTEL Maps Copilot.\nMình có thể giúp bạn tìm địa điểm, chỉ đường theo phương tiện và tìm địa điểm lân cận.\n\nBạn có thể thử: "Tìm quán cà phê gần đây".',
-      timestamp: Date.now(),
-    },
-  ]);
+export default function MapCopilot({ mapRef }: MapCopilotProps) {
+  const [messages, setMessages] = useState<ChatMessage[]>([WELCOME_MESSAGE]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isOpen, setIsOpen] = useState(true);
-  const [isVoiceSupported, setIsVoiceSupported] = useState(false);
-  const [isListening, setIsListening] = useState(false);
-  const [voiceError, setVoiceError] = useState<string | null>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
-  const isLoadingRef = useRef(false);
-  const sendMessageRef = useRef<(userText: string) => Promise<void>>(async () => undefined);
-  const voiceBaseInputRef = useRef('');
-  const voiceCurrentInputRef = useRef('');
-  const autoSendVoiceRef = useRef(false);
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
   }, [messages]);
 
   // Focus input when panel opens
   useEffect(() => {
-    if (isOpen) {
-      inputRef.current?.focus();
-    }
+    if (isOpen) inputRef.current?.focus();
   }, [isOpen]);
 
-  // ── Send Message ─────────────────────────────────────────────────
+  // ── API Interaction ────────────────────────────────────────────────
 
-  const callMapAgent = useCallback(async (messages: AgentApiMessage[], responseOnly = false) => {
-    const response = await fetch('/api/map-agent', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages, responseOnly }),
-    });
+  const callMapAgent = useCallback(
+    async (apiMessages: AgentApiMessage[], responseOnly = false): Promise<AgentResponse> => {
+      const response = await fetch('/api/map-agent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: apiMessages, responseOnly }),
+      });
 
-    const data: AgentResponse & { error?: string } = await response.json();
-    if (!response.ok) {
-      throw new Error(data.error || 'Không thể gọi API.');
-    }
+      const data: AgentResponse & { error?: string } = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Không thể gọi API.');
+      return data;
+    },
+    [],
+  );
 
-    return data;
-  }, []);
+  // ── Send Message ───────────────────────────────────────────────────
 
   const sendMessage = useCallback(
     async (userText: string) => {
@@ -159,7 +138,6 @@ export default function MapCopilot({ mapRef }: Props) {
         return;
       }
 
-      // Add user message
       const userMsg: ChatMessage = {
         id: generateId(),
         role: 'user',
@@ -167,9 +145,9 @@ export default function MapCopilot({ mapRef }: Props) {
         timestamp: Date.now(),
       };
 
-      // Add loading indicator
+      const loadingId = generateId();
       const loadingMsg: ChatMessage = {
-        id: generateId(),
+        id: loadingId,
         role: 'assistant',
         content: '',
         timestamp: Date.now(),
@@ -181,13 +159,10 @@ export default function MapCopilot({ mapRef }: Props) {
       setIsLoading(true);
 
       try {
-        // Build conversation history for the API
+        // Build conversation history (exclude UI-only messages)
         const apiMessages: AgentApiMessage[] = [...messages, userMsg]
           .filter((m) => !m.isLoading && !m.toolCall && !m.toolResult)
-          .map((m) => ({
-            role: m.role,
-            content: m.content,
-          }));
+          .map((m) => ({ role: m.role, content: m.content }));
 
         // First pass: tool planning
         const data = await callMapAgent(apiMessages, false);
@@ -199,11 +174,10 @@ export default function MapCopilot({ mapRef }: Props) {
           result: ToolResult;
         }> = [];
 
-        // Process tool calls
-        if (data.toolCalls && data.toolCalls.length > 0) {
+        // Execute tool calls
+        if (data.toolCalls?.length) {
           for (const toolCall of data.toolCalls) {
-            // Execute the tool
-            const result: ToolResult = await executeTool(map, toolCall.name, toolCall.arguments);
+            const result = await executeTool(map, toolCall.name, toolCall.arguments);
             executedTools.push({
               id: toolCall.id,
               name: toolCall.name,
@@ -215,7 +189,7 @@ export default function MapCopilot({ mapRef }: Props) {
 
         let finalReply = data.reply?.trim() || '';
 
-        // Second pass: AI summarizes grounded answer from tool outputs.
+        // Second pass: AI summarizes a grounded answer from tool outputs
         if (executedTools.length > 0) {
           const groundedPrompt = `Yêu cầu gần nhất của người dùng: "${userText}".
             Dữ liệu công cụ vừa chạy:
@@ -242,42 +216,40 @@ export default function MapCopilot({ mapRef }: Props) {
 
         if (!finalReply) {
           const failedTool = executedTools.find((item) => !item.result.success);
-          if (failedTool) {
-            finalReply = failedTool.result.message;
-          } else if (executedTools.length > 0) {
-            finalReply = 'Mình đã xử lý xong yêu cầu trên bản đồ.';
-          }
+          finalReply = failedTool
+            ? failedTool.result.message
+            : executedTools.length > 0
+              ? 'Mình đã xử lý xong yêu cầu trên bản đồ.'
+              : '';
         }
 
-        // Remove loading indicator
-        setMessages((prev) => prev.filter((m) => m.id !== loadingMsg.id));
-
-        // Show assistant text reply if any
-        if (finalReply) {
-          setMessages((prev) => [
-            ...prev,
+        // Replace loading with final reply
+        setMessages((prev) => {
+          const withoutLoading = prev.filter((m) => m.id !== loadingId);
+          if (!finalReply) return withoutLoading;
+          return [
+            ...withoutLoading,
             {
               id: generateId(),
-              role: 'assistant',
+              role: 'assistant' as const,
               content: finalReply,
               timestamp: Date.now(),
             },
-          ]);
-        }
+          ];
+        });
       } catch (error) {
-        // Remove loading indicator
-        setMessages((prev) => prev.filter((m) => m.id !== loadingMsg.id));
-
-        // Show error
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: generateId(),
-            role: 'assistant',
-            content: `⚠️ ${error instanceof Error ? error.message : 'Đã xảy ra lỗi. Vui lòng thử lại.'}`,
-            timestamp: Date.now(),
-          },
-        ]);
+        setMessages((prev) => {
+          const withoutLoading = prev.filter((m) => m.id !== loadingId);
+          return [
+            ...withoutLoading,
+            {
+              id: generateId(),
+              role: 'assistant' as const,
+              content: `⚠️ ${error instanceof Error ? error.message : 'Đã xảy ra lỗi. Vui lòng thử lại.'}`,
+              timestamp: Date.now(),
+            },
+          ];
+        });
       } finally {
         setIsLoading(false);
       }
@@ -285,179 +257,27 @@ export default function MapCopilot({ mapRef }: Props) {
     [messages, isLoading, mapRef, callMapAgent],
   );
 
-  useEffect(() => {
-    isLoadingRef.current = isLoading;
-  }, [isLoading]);
+  // ── Speech Recognition ─────────────────────────────────────────────
 
-  useEffect(() => {
-    sendMessageRef.current = sendMessage;
-  }, [sendMessage]);
+  const { isVoiceSupported, isListening, voiceError, handleVoiceToggle } = useSpeechRecognition({
+    input,
+    setInput,
+    isLoading,
+    isOpen,
+    sendMessage,
+  });
 
-  useEffect(() => {
-    if (typeof window === 'undefined') {
-      return;
-    }
-
-    const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognitionCtor) {
-      setIsVoiceSupported(false);
-      return;
-    }
-
-    const recognition = new SpeechRecognitionCtor();
-    recognition.lang = 'vi-VN';
-    recognition.continuous = false;
-    recognition.interimResults = true;
-    recognition.maxAlternatives = 1;
-
-    recognition.onstart = () => {
-      setIsListening(true);
-      setVoiceError(null);
-    };
-
-    recognition.onresult = (event) => {
-      let transcript = '';
-      for (let i = 0; i < event.results.length; i += 1) {
-        const alternative = event.results[i]?.[0];
-        if (alternative?.transcript) {
-          transcript += `${alternative.transcript} `;
-        }
-      }
-
-      const mergedInput = combineVoiceAndTypedInput(voiceBaseInputRef.current, transcript);
-      voiceCurrentInputRef.current = mergedInput;
-      setInput(mergedInput);
-    };
-
-    recognition.onerror = (event) => {
-      if (event.error === 'no-speech') {
-        setVoiceError('Không nghe rõ giọng nói. Bạn thử lại nhé.');
-      } else if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
-        setVoiceError('Bạn chưa cấp quyền micro cho trình duyệt.');
-      } else if (event.error === 'audio-capture') {
-        setVoiceError('Không tìm thấy thiết bị micro.');
-      } else {
-        setVoiceError(`Voice input lỗi: ${event.error}`);
-      }
-
-      autoSendVoiceRef.current = false;
-    };
-
-    recognition.onend = () => {
-      setIsListening(false);
-
-      const shouldAutoSend = autoSendVoiceRef.current;
-      autoSendVoiceRef.current = false;
-
-      const finalInput = voiceCurrentInputRef.current.trim();
-      if (!shouldAutoSend || !finalInput) {
-        return;
-      }
-
-      if (isLoadingRef.current) {
-        setInput(finalInput);
-        return;
-      }
-
-      setInput(finalInput);
-      void sendMessageRef.current(finalInput);
-    };
-
-    recognitionRef.current = recognition;
-    setIsVoiceSupported(true);
-
-    return () => {
-      autoSendVoiceRef.current = false;
-      recognition.onstart = null;
-      recognition.onresult = null;
-      recognition.onerror = null;
-      recognition.onend = null;
-      try {
-        recognition.abort();
-      } catch {
-        // Ignore cleanup errors from browser speech engine.
-      }
-      recognitionRef.current = null;
-    };
-  }, []);
-
-  const stopVoiceInput = useCallback((manualStop = false) => {
-    const recognition = recognitionRef.current;
-    if (!recognition) {
-      return;
-    }
-
-    if (manualStop) {
-      autoSendVoiceRef.current = false;
-    }
-
-    try {
-      recognition.stop();
-    } catch {
-      // Ignore repeated stop calls.
-    }
-  }, []);
-
-  const startVoiceInput = useCallback(() => {
-    const recognition = recognitionRef.current;
-    if (!recognition || isLoading) {
-      return;
-    }
-
-    setVoiceError(null);
-    voiceBaseInputRef.current = input;
-    voiceCurrentInputRef.current = input;
-    autoSendVoiceRef.current = true;
-
-    try {
-      recognition.start();
-    } catch (error) {
-      autoSendVoiceRef.current = false;
-      setVoiceError(
-        error instanceof Error
-          ? `Không thể bật voice input: ${error.message}`
-          : 'Không thể bật voice input.',
-      );
-    }
-  }, [input, isLoading]);
-
-  const handleVoiceToggle = useCallback(() => {
-    if (isListening) {
-      stopVoiceInput(true);
-      return;
-    }
-    startVoiceInput();
-  }, [isListening, startVoiceInput, stopVoiceInput]);
-
-  useEffect(() => {
-    if (!isOpen && isListening) {
-      stopVoiceInput(true);
-    }
-  }, [isOpen, isListening, stopVoiceInput]);
-
-  useEffect(() => {
-    if (isLoading && isListening) {
-      stopVoiceInput(true);
-    }
-  }, [isLoading, isListening, stopVoiceInput]);
-
-  // ── Form Submit ──────────────────────────────────────────────────
+  // ── Form Submit ────────────────────────────────────────────────────
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     sendMessage(input);
   };
 
-  // ── Quick Commands ───────────────────────────────────────────────
+  const hasUserMessages = messages.some((m) => m.role === 'user');
+  const statusText = isLoading ? 'Đang xử lý...' : isListening ? 'Đang nghe...' : 'Sẵn sàng';
 
-  const quickCommands = [
-    'Công ty GTEL OTS ở tỉnh thành nào?',
-    'Vị trí hiện tại của tôi?',
-    'Chỉ đường đến sân bay Tân Sơn Nhất',
-    'Quán cafe gần nhất',
-  ];
-
-  // ── Render ───────────────────────────────────────────────────────
+  // ── Render ─────────────────────────────────────────────────────────
 
   return (
     <>
@@ -481,9 +301,7 @@ export default function MapCopilot({ mapRef }: Props) {
               <span className='text-2xl'>🤖</span>
               <div className='flex flex-col gap-1'>
                 <h3 className='m-0 text-[15px] font-bold tracking-tight'>GTEL Maps Copilot</h3>
-                <span className='text-[11px] opacity-80'>
-                  {isLoading ? 'Đang xử lý...' : isListening ? 'Đang nghe...' : 'Sẵn sàng'}
-                </span>
+                <span className='text-[11px] opacity-80'>{statusText}</span>
               </div>
             </div>
             <button
@@ -505,10 +323,10 @@ export default function MapCopilot({ mapRef }: Props) {
             ))}
           </div>
 
-          {/* Quick Commands (shown only when no user messages yet) */}
-          {messages.filter((m) => m.role === 'user').length === 0 && (
+          {/* Quick Commands */}
+          {!hasUserMessages && (
             <div className='flex flex-wrap gap-1.5 border-t border-gray-100 px-3 py-2'>
-              {quickCommands.map((cmd) => (
+              {QUICK_COMMANDS.map((cmd) => (
                 <button
                   key={cmd}
                   className='whitespace-nowrap rounded-full border border-gray-200 bg-gray-100 px-2.5 py-1 text-[11.5px] text-gray-600 transition-all hover:bg-gray-200 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-50'
@@ -552,21 +370,7 @@ export default function MapCopilot({ mapRef }: Props) {
                 isListening ? 'bg-rose-500 hover:bg-rose-600' : 'bg-sky-500 hover:bg-sky-600'
               }`}
             >
-              <svg
-                width='16'
-                height='16'
-                viewBox='0 0 24 24'
-                fill='none'
-                stroke='currentColor'
-                strokeWidth='2'
-                strokeLinecap='round'
-                strokeLinejoin='round'
-              >
-                <path d='M12 1a3 3 0 0 0-3 3v8a3 3 0 1 0 6 0V4a3 3 0 0 0-3-3z' />
-                <path d='M19 10v2a7 7 0 0 1-14 0v-2' />
-                <line x1='12' y1='19' x2='12' y2='23' />
-                <line x1='8' y1='23' x2='16' y2='23' />
-              </svg>
+              <MicIcon />
             </button>
             <button
               type='submit'
@@ -574,21 +378,11 @@ export default function MapCopilot({ mapRef }: Props) {
               aria-label='Gửi'
               className='flex h-9.5 w-9.5 shrink-0 items-center justify-center rounded-[10px] border-none bg-indigo-600 text-white transition-all hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-40'
             >
-              <svg
-                width='18'
-                height='18'
-                viewBox='0 0 24 24'
-                fill='none'
-                stroke='currentColor'
-                strokeWidth='2'
-                strokeLinecap='round'
-                strokeLinejoin='round'
-              >
-                <line x1='22' y1='2' x2='11' y2='13' />
-                <polygon points='22 2 15 22 11 13 2 9 22 2' />
-              </svg>
+              <SendIcon />
             </button>
           </form>
+
+          {/* Voice Error */}
           {(voiceError || !isVoiceSupported) && (
             <div className='border-t border-gray-100 p-3 text-[12px] text-rose-600'>
               {voiceError || 'Trình duyệt hiện tại chưa hỗ trợ nhập giọng nói.'}

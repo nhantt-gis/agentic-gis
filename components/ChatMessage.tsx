@@ -4,30 +4,29 @@
  * Renders a single message in the Map Copilot chat panel.
  * Supports user messages, assistant replies, tool-call logs,
  * and tool-result status indicators.
- *
- * Styled with Tailwind CSS.
  */
 
 'use client';
 
-import React from 'react';
-import { ChatMessage as ChatMessageType } from '@/lib/openai';
-import { TOOL_ACTION_LABELS } from '@/lib/mapTools';
+import React, { memo } from 'react';
+import type { ChatMessage as ChatMessageType } from '@/types';
+import { TOOL_ACTION_LABELS } from '@/lib/map';
 
-interface Props {
+interface ChatMessageProps {
   message: ChatMessageType;
 }
 
-export default function ChatMessage({ message }: Props) {
+const USER_BUBBLE_CLASS =
+  'max-w-[85%] rounded-2xl rounded-br-sm bg-indigo-600 px-3.5 py-2.5 text-[13.5px] leading-snug text-white';
+const ASSISTANT_BUBBLE_CLASS =
+  'max-w-[85%] rounded-2xl rounded-bl-sm bg-gray-100 px-3.5 py-2.5 text-[13.5px] leading-snug text-gray-800';
+
+function ChatMessage({ message }: ChatMessageProps) {
   const isUser = message.role === 'user';
-  const userBubbleClass =
-    'max-w-[85%] rounded-2xl rounded-br-sm bg-indigo-600 px-3.5 py-2.5 text-[13.5px] leading-snug text-white';
-  const assistantBubbleClass =
-    'max-w-[85%] rounded-2xl rounded-bl-sm bg-gray-100 px-3.5 py-2.5 text-[13.5px] leading-snug text-gray-800';
 
   const renderAssistantBubble = (content: string, toneClass?: string) => (
     <div className='flex justify-start px-3 py-1'>
-      <div className={`${assistantBubbleClass} ${toneClass || ''}`}>
+      <div className={`${ASSISTANT_BUBBLE_CLASS} ${toneClass || ''}`}>
         <p className='m-0 whitespace-pre-wrap wrap-break-word'>{content}</p>
       </div>
     </div>
@@ -68,9 +67,11 @@ export default function ChatMessage({ message }: Props) {
   // ── User / Assistant Bubble ──────────────────────────────────────
   return (
     <div className={`flex px-3 py-1 ${isUser ? 'justify-end' : 'justify-start'}`}>
-      <div className={isUser ? userBubbleClass : assistantBubbleClass}>
+      <div className={isUser ? USER_BUBBLE_CLASS : ASSISTANT_BUBBLE_CLASS}>
         <p className='m-0 whitespace-pre-wrap wrap-break-word'>{message.content}</p>
       </div>
     </div>
   );
 }
+
+export default memo(ChatMessage);

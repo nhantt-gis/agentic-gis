@@ -1,53 +1,8 @@
 /**
- * openai.ts
- *
- * Shared LLM types/prompt for the Map Copilot.
- * Handles system prompt construction and message types shared
- * between the API route and the frontend.
+ * System prompts for the Map Copilot LLM interactions.
  */
 
-// ── Shared Message Types ─────────────────────────────────────────────
-
-export type MessageRole = 'user' | 'assistant' | 'system' | 'tool';
-
-/** A single chat message displayed in the UI */
-export interface ChatMessage {
-  id: string;
-  role: MessageRole;
-  content: string;
-  timestamp: number;
-  /** If this message is a tool-call result */
-  toolCall?: {
-    name: string;
-    arguments: Record<string, unknown>;
-  };
-  /** If this message contains tool execution result */
-  toolResult?: {
-    success: boolean;
-    message: string;
-    data?: Record<string, unknown>;
-  };
-  /** Loading state for assistant messages */
-  isLoading?: boolean;
-}
-
-/** Tool call returned by the LLM */
-export interface ToolCallResponse {
-  id?: string;
-  name: string;
-  arguments: Record<string, unknown>;
-}
-
-/** API response shape */
-export interface AgentResponse {
-  /** The assistant's text reply (may be empty if tool call) */
-  reply: string;
-  /** Tool calls the LLM wants to execute */
-  toolCalls: ToolCallResponse[];
-}
-
-// ── System Prompt ────────────────────────────────────────────────────
-
+/** System prompt for the request/tool-planning pass */
 export const REQUEST_PROMPT = `Bạn là GTEL Maps Copilot, trợ lý AI điều khiển bản đồ tương tác.
 
 Nhiệm vụ của bạn là hiểu yêu cầu của người dùng về bản đồ/địa điểm, sau đó gọi đúng công cụ.
@@ -88,6 +43,7 @@ Nhiệm vụ của bạn là hiểu yêu cầu của người dùng về bản �
 
 Luôn phản hồi bằng cơ chế function calling. Chỉ thêm một câu ngắn bằng tiếng Việt khi cần ngữ cảnh.`;
 
+/** System prompt for the response-only/summarization pass */
 export const RESPONSE_PROMPT = `Bạn là GTEL Maps Copilot.
 Nhiệm vụ: tổng hợp câu trả lời NGẮN GỌN và CHÍNH XÁC từ dữ liệu tool đã có, không được gọi tool.
 
@@ -95,11 +51,4 @@ Quy tắc:
 - Chỉ trả lời đúng trọng tâm câu hỏi gần nhất của người dùng.
 - Nếu người dùng hỏi ở mức tỉnh/thành, chỉ trả lời tỉnh/thành (không liệt kê đầy đủ địa chỉ).
 - Nếu dữ liệu không đủ chắc chắn, nói rõ không chắc và nêu phần dữ liệu đang có.
-- Trả lời tiếng Việt, tối đa 2 câu.` 
-
-// ── Utility ──────────────────────────────────────────────────────────
-
-/** Generate a unique message ID */
-export function generateId(): string {
-  return `msg_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-}
+- Trả lời tiếng Việt, tối đa 2 câu.`;
