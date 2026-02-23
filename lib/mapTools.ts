@@ -56,7 +56,13 @@ const TOOL_EXECUTORS: Record<
   nearbySearch: (map, args) =>
     nearbySearch(
       map,
-      args as { keyword?: string; type?: NearbyPlaceType; radius?: number; location?: string },
+      args as {
+        keyword?: string;
+        type?: NearbyPlaceType;
+        radius?: number;
+        location?: string;
+        minRating?: number;
+      },
     ),
   getUserLocation: (map) => getUserLocation(map),
   getMapCenter: (map) => getMapCenter(map),
@@ -113,6 +119,14 @@ let directionsEndMarker: Marker | null = null;
 let nearbyPlaceMarkers: Marker[] = [];
 let searchPlaceMarker: Marker | null = null;
 let userLocationMarker: Marker | null = null;
+let lastNearbySearchContext: {
+  keyword: string | null;
+  type: NearbyPlaceType | null;
+  radius: number;
+  minRating: number | null;
+  center: { lat: number; lng: number };
+  label: string;
+} | null = null;
 
 interface GoogleTextSearchResponse {
   status?: string;
@@ -458,6 +472,14 @@ function normalizeNearbyRadius(radius?: number): number {
   return Math.min(MAX_NEARBY_RADIUS, Math.max(MIN_NEARBY_RADIUS, Math.round(radius)));
 }
 
+function normalizeMinRating(minRating?: number): number | null {
+  if (typeof minRating !== 'number' || !Number.isFinite(minRating)) {
+    return null;
+  }
+  const bounded = Math.min(5, Math.max(0, minRating));
+  return Math.round(bounded * 10) / 10;
+}
+
 function clearNearbyMarkers(): void {
   nearbyPlaceMarkers.forEach((marker) => marker.remove());
   nearbyPlaceMarkers = [];
@@ -775,10 +797,13 @@ async function fetchNearbyPlaces(args: {
   keyword?: string;
   type?: NearbyPlaceType;
   radius?: number;
+  minRating?: number;
 }): Promise<{
   radius: number;
+  minRating: number | null;
   rawCount: number;
   filteredOutCount: number;
+  ratingFilteredOutCount: number;
   places: Array<{
     id: string;
     name: string;
@@ -808,6 +833,7 @@ async function fetchNearbyPlaces(args: {
   }
 
   const radius = normalizeNearbyRadius(args.radius);
+  const minRating = normalizeMinRating(args.minRating);
   const url = new URL(GOOGLE_MAPS_NEARBY_SEARCH_URL);
   url.searchParams.set('location', `${args.location.lat},${args.location.lng}`);
   url.searchParams.set('radius', String(radius));
@@ -830,7 +856,7 @@ async function fetchNearbyPlaces(args: {
 
   const data: GoogleNearbySearchResponse = await res.json();
   if (data.status === 'ZERO_RESULTS') {
-    return { radius, rawCount: 0, filteredOutCount: 0, places: [] };
+    return { radius, minRating, rawCount: 0, filteredOutCount: 0, ratingFilteredOutCount: 0, places: [] };
   }
   if (data.status && data.status !== 'OK') {
     throw new Error(
@@ -861,7 +887,7 @@ async function fetchNearbyPlaces(args: {
         photoUrl: createGooglePlacePhotoUrl(place.photoReference, 640),
       })) || [];
 
-  const places = parsedPlaces
+  const placesInRadius = parsedPlaces
     .map((place) => ({
       ...place,
       distanceMeters: haversineDistanceMeters(args.location, { lat: place.lat, lng: place.lng }),
@@ -869,10 +895,16 @@ async function fetchNearbyPlaces(args: {
     .filter((place) => place.distanceMeters <= radius)
     .sort((a, b) => a.distanceMeters - b.distanceMeters);
 
+  const places = placesInRadius
+    .filter((place) => (minRating === null ? true : (place.rating ?? -1) >= minRating))
+    .sort((a, b) => a.distanceMeters - b.distanceMeters);
+
   return {
     radius,
+    minRating,
     rawCount: parsedPlaces.length,
-    filteredOutCount: parsedPlaces.length - places.length,
+    filteredOutCount: parsedPlaces.length - placesInRadius.length,
+    ratingFilteredOutCount: placesInRadius.length - places.length,
     places,
   };
 }
@@ -884,6 +916,7 @@ async function fetchNearbyPlaces(args: {
  */
 export async function searchPlace(map: Map, args: { query: string }): Promise<ToolResult> {
   clearAllMapVisuals(map);
+  lastNearbySearchContext = null;
   const location = await textSearch(args.query);
   const popupHtml = buildPopupHtml({
     name: location.name,
@@ -942,6 +975,7 @@ export async function getDirections(
   args: { from: string; to: string; mode?: DirectionsMode },
 ): Promise<ToolResult> {
   clearAllMapVisuals(map);
+  lastNearbySearchContext = null;
   const route = await fetchDirections(args.from, args.to, args.mode);
 
   map.addSource(DIRECTIONS_SOURCE_ID, {
@@ -1023,16 +1057,59 @@ export async function getDirections(
  */
 export async function nearbySearch(
   map: Map,
-  args: { keyword?: string; type?: NearbyPlaceType; radius?: number; location?: string },
+  args: { keyword?: string; type?: NearbyPlaceType; radius?: number; location?: string; minRating?: number },
 ): Promise<ToolResult> {
+  const keyword = args.keyword?.trim() || null;
+  const type = args.type || null;
+  const needsReuse = !keyword && !type && !!lastNearbySearchContext;
+
+  const effectiveKeyword = keyword || lastNearbySearchContext?.keyword || undefined;
+  const effectiveType = type || lastNearbySearchContext?.type || undefined;
+  const effectiveRadius =
+    typeof args.radius === 'number'
+      ? args.radius
+      : needsReuse && lastNearbySearchContext
+        ? lastNearbySearchContext.radius
+        : undefined;
+  const effectiveMinRating =
+    typeof args.minRating === 'number'
+      ? args.minRating
+      : needsReuse && lastNearbySearchContext && lastNearbySearchContext.minRating !== null
+        ? lastNearbySearchContext.minRating
+        : undefined;
+
+  if (!effectiveKeyword && !effectiveType) {
+    throw new Error(
+      'Bạn chưa nêu rõ cần tìm gì lân cận. Hãy nói thêm từ khóa hoặc loại địa điểm (ví dụ: bãi gửi xe, quán cà phê).',
+    );
+  }
+
+  const center =
+    !args.location && needsReuse && lastNearbySearchContext
+      ? {
+          lat: lastNearbySearchContext.center.lat,
+          lng: lastNearbySearchContext.center.lng,
+          label: lastNearbySearchContext.label,
+        }
+      : await resolveNearbySearchCenter(map, args.location);
+
   clearAllMapVisuals(map);
-  const center = await resolveNearbySearchCenter(map, args.location);
-  const { radius, places, rawCount, filteredOutCount } = await fetchNearbyPlaces({
+  const { radius, minRating, places, rawCount, filteredOutCount, ratingFilteredOutCount } = await fetchNearbyPlaces({
     location: { lat: center.lat, lng: center.lng },
-    keyword: args.keyword,
-    type: args.type,
-    radius: args.radius,
+    keyword: effectiveKeyword,
+    type: effectiveType,
+    radius: effectiveRadius,
+    minRating: effectiveMinRating,
   });
+
+  lastNearbySearchContext = {
+    keyword: effectiveKeyword || null,
+    type: effectiveType || null,
+    radius,
+    minRating,
+    center: { lat: center.lat, lng: center.lng },
+    label: center.label,
+  };
 
   const bufferBounds = drawNearbyBuffer(map, { lng: center.lng, lat: center.lat }, radius);
 
@@ -1043,15 +1120,17 @@ export async function nearbySearch(
       success: true,
       message:
         `Không tìm thấy kết quả lân cận trong vùng buffer bán kính ${radius}m quanh ${center.label}.` +
-        (rawCount > 0 ? ` Google trả về ${rawCount} điểm nhưng đều nằm ngoài buffer đã chọn.` : ''),
+        (rawCount > 0 ? ` Google trả về ${rawCount} điểm nhưng không điểm nào đạt điều kiện lọc hiện tại.` : ''),
       data: {
         center,
         radius,
         bufferAreaKm2: Math.round(Math.PI * (radius / 1000) ** 2 * 100) / 100,
-        keyword: args.keyword || null,
-        type: args.type || null,
+        keyword: effectiveKeyword || null,
+        type: effectiveType || null,
+        minRating,
         rawCount,
         filteredOutCount,
+        ratingFilteredOutCount,
         totalFound: 0,
       },
     };
@@ -1082,15 +1161,18 @@ export async function nearbySearch(
     message:
       `Đã tìm thấy ${places.length} địa điểm lân cận trong bán kính ${radius}m quanh ${center.label}. ` +
       `Đang hiển thị ${visiblePlaces.length} điểm đầu tiên trên bản đồ.` +
+      (minRating !== null ? ` Đang lọc từ ${minRating.toFixed(1)} sao trở lên.` : '') +
       (filteredOutCount > 0 ? ` Đã tự động lọc ${filteredOutCount} điểm ngoài buffer.` : ''),
     data: {
       center,
       radius,
       bufferAreaKm2: Math.round(Math.PI * (radius / 1000) ** 2 * 100) / 100,
-      keyword: args.keyword || null,
-      type: args.type || null,
+      keyword: effectiveKeyword || null,
+      type: effectiveType || null,
+      minRating,
       rawCount,
       filteredOutCount,
+      ratingFilteredOutCount,
       totalFound: places.length,
       shown: visiblePlaces.length,
       places: visiblePlaces.slice(0, 5).map((place) => ({
@@ -1114,6 +1196,7 @@ export async function nearbySearch(
  */
 export async function getUserLocation(map: Map): Promise<ToolResult> {
   clearAllMapVisuals(map);
+  lastNearbySearchContext = null;
   return new Promise((resolve) => {
     if (!navigator.geolocation) {
       resolve({

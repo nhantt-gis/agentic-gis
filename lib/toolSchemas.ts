@@ -73,8 +73,10 @@ export const MAP_TOOL_SCHEMAS: ChatCompletionTool[] = [
       description:
         'Find nearby places around a location using Google Places Nearby Search. ' +
         'Use keyword and/or place type, with optional radius. ' +
+        'Supports rating filter with minRating (for example: >= 4 stars). ' +
         'The map should display nearby markers and a radius buffer area. ' +
-        'At least one of keyword or type should be provided.',
+        'At least one of keyword or type should be provided. ' +
+        'For follow-up filters (e.g. "chỉ lấy trên 4 sao"), reuse previous nearby context.',
       parameters: {
         type: 'object',
         properties: {
@@ -111,6 +113,11 @@ export const MAP_TOOL_SCHEMAS: ChatCompletionTool[] = [
           radius: {
             type: 'number',
             description: 'Search radius in meters (100-50000). Default 1000.',
+          },
+          minRating: {
+            type: 'number',
+            description:
+              'Minimum rating filter from 0 to 5 (e.g. 4 means only places rated 4.0+).',
           },
         },
         required: [],

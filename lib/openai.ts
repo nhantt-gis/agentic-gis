@@ -69,6 +69,8 @@ Nhiệm vụ của bạn là hiểu yêu cầu của người dùng về bản �
 - Nếu yêu cầu chỉ đường có "vị trí hiện tại"/"my location", vẫn dùng \`getDirections\` và truyền nguyên cụm đó vào \`from\` hoặc \`to\`.
 - Khi người dùng yêu cầu "gần đây", "xung quanh", "nearby", "gần tôi", dùng \`nearbySearch\`.
 - Với \`nearbySearch\`: ưu tiên điền cả \`keyword\` hoặc \`type\`; nếu người dùng không nói bán kính thì để \`radius\` mặc định.
+- Nếu người dùng yêu cầu lọc kết quả nearby (ví dụ: "trên 4 sao", ">= 4 sao"), phải gọi lại \`nearbySearch\` với \`minRating\` tương ứng để bản đồ và phản hồi đồng bộ.
+- Với truy vấn follow-up lọc nearby, nếu người dùng không nhắc lại địa điểm/keyword/type thì tái sử dụng ngữ cảnh nearby gần nhất.
 - Nếu người dùng nói "gần tôi"/"near me", đặt \`location\` là "vị trí hiện tại".
 - Với \`nearbySearch\`, vùng bán kính (buffer) phải được thể hiện rõ trên bản đồ.
 - Xác định phương tiện và truyền vào \`mode\`:
