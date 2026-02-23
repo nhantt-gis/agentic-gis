@@ -16,32 +16,13 @@ import Map, {
 } from 'react-map-gl/maplibre';
 
 // re-export the raw MapLibre type so tools can use it
-import type { Map as MaplibreMap, StyleSpecification } from 'maplibre-gl';
+import type { Map as MaplibreMap } from 'maplibre-gl';
+import { GTEL_MAPS_API_KEY, GTEL_MAPS_STYLE_URL } from '@/lib/map/constants';
 
 // ── Default map configuration ─────────────────────────────────────
 
 const DEFAULT_CENTER: [number, number] = [108.16, 15.34];
 const DEFAULT_ZOOM = 5;
-const DEFAULT_STYLE: StyleSpecification = {
-  version: 8,
-  sources: {
-    google: {
-      type: 'raster',
-      tiles: ['https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}'],
-      tileSize: 256,
-      attribution: '© Google',
-    },
-  },
-  layers: [
-    {
-      id: 'google-layer',
-      type: 'raster',
-      source: 'google',
-      minzoom: 0,
-      maxzoom: 22,
-    },
-  ],
-};
 
 /** Handle exposed to parent so the raw MapLibre instance can be shared */
 export interface MapViewHandle {
@@ -54,6 +35,8 @@ export interface MapViewProps {
 
 const MapView = forwardRef<MapViewHandle, MapViewProps>(({ onMapReady }, ref) => {
   const mapRef = useRef<MapRef>(null);
+  const mapStyle = new URL(GTEL_MAPS_STYLE_URL);
+  mapStyle.searchParams.set('apikey', GTEL_MAPS_API_KEY!);
 
   // Expose the underlying MapLibre map instance
   useImperativeHandle(ref, () => ({
@@ -77,7 +60,7 @@ const MapView = forwardRef<MapViewHandle, MapViewProps>(({ onMapReady }, ref) =>
         zoom: DEFAULT_ZOOM,
       }}
       style={{ width: '100%', height: '100%' }}
-      mapStyle={DEFAULT_STYLE}
+      mapStyle={mapStyle.toString()}
       onLoad={handleMapLoad}
       canvasContextAttributes={{ preserveDrawingBuffer: true }}
       hash={true}

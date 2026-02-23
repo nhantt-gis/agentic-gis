@@ -12,6 +12,10 @@ export const GOOGLE_MAPS_PLACE_PHOTO_URL = 'https://maps.googleapis.com/maps/api
 export const GOOGLE_MAPS_DIRECTIONS_URL = 'https://maps.googleapis.com/maps/api/directions/json';
 export const GOOGLE_MAPS_NEARBY_SEARCH_URL = 'https://maps.googleapis.com/maps/api/place/nearbysearch/json';
 
+// ── GTEL Maps API ────────────────────────────────────────────────────
+export const GTEL_MAPS_API_KEY = process.env.NEXT_PUBLIC_GTEL_MAPS_API_KEY;
+export const GTEL_MAPS_STYLE_URL = 'https://maps.ots.vn/api/styles/v1/gtelmaps-streets-v1/style.json';
+
 // ── Map Layer / Source IDs ───────────────────────────────────────────
 
 export const DIRECTIONS_SOURCE_ID = 'directions-route-source';
