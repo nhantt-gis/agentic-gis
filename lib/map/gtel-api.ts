@@ -268,6 +268,8 @@ function normalizeVN(text: string): string {
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/đ/g, 'd')
     .replace(/Đ/g, 'D')
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
     .trim();
 }
 
@@ -286,6 +288,17 @@ const QUERY_PREFIXES = [
   'boundary',
 ];
 
+const BOUNDARY_INTENT_KEYWORDS = [
+  'ranh gioi',
+  'ranh gioi hanh chinh',
+  'dia gioi',
+  'dia gioi hanh chinh',
+  'hanh chinh',
+  'rghc',
+  'boundary',
+  'ban do hanh chinh',
+];
+
 /**
  * Strip known prefixes from a normalized string.
  */
@@ -300,6 +313,17 @@ function stripPrefixes(normalized: string, prefixes: string[]): string {
   return result;
 }
 
+function containsWholePhrase(text: string, phrase: string): boolean {
+  if (!phrase) return false;
+  const paddedText = ` ${text} `;
+  const paddedPhrase = ` ${phrase} `;
+  return paddedText.includes(paddedPhrase);
+}
+
+function hasBoundaryIntent(normalizedQuery: string): boolean {
+  return BOUNDARY_INTENT_KEYWORDS.some((kw) => normalizedQuery.includes(kw));
+}
+
 /**
  * Try to match a user search query against the provinces list.
  * Returns the matching province or null if no match found.
@@ -312,6 +336,7 @@ export function findMatchingProvince(query: string): Province | null {
 
   const normalizedQuery = normalizeVN(query);
   const strippedQuery = stripPrefixes(normalizedQuery, QUERY_PREFIXES);
+  const boundaryIntent = hasBoundaryIntent(normalizedQuery);
 
   // If after stripping, query is empty, no match
   if (!strippedQuery) return null;
@@ -335,6 +360,18 @@ export function findMatchingProvince(query: string): Province | null {
     // Match stripped query against full english name without common suffixes
     const strippedFne = normalizedFne.replace(/\s*(city|province)$/i, '').trim();
     if (strippedQuery === strippedFne) {
+      return province;
+    }
+
+    // Boundary intent: allow query phrase to contain province/city name
+    // Example: "xem ranh gioi cua tp ho chi minh"
+    if (
+      boundaryIntent &&
+      (containsWholePhrase(normalizedQuery, strippedFname) ||
+        containsWholePhrase(normalizedQuery, normalizedFname) ||
+        containsWholePhrase(normalizedQuery, strippedFne) ||
+        containsWholePhrase(normalizedQuery, normalizedFne))
+    ) {
       return province;
     }
   }
