@@ -71,7 +71,8 @@ export const MAP_TOOL_SCHEMAS: ChatCompletionTool[] = [
     function: {
       name: 'nearbySearch',
       description:
-        'Find nearby places around a location using Google Places Nearby Search. ' +
+        'Find nearby places around a location. ' +
+        'Uses Google Places Nearby Search for common POIs, and GTEL Maps Nearby Search when searching traffic cameras. ' +
         'Use keyword and/or place type, with optional radius. ' +
         'Supports rating filter with minRating (for example: >= 4 stars). ' +
         'The map should display nearby markers and a radius buffer area. ' +
@@ -87,8 +88,9 @@ export const MAP_TOOL_SCHEMAS: ChatCompletionTool[] = [
           type: {
             type: 'string',
             description:
-              'Google place type filter. Example: "restaurant", "cafe", "hospital", "atm", "hotel".',
+              'Place type filter. Example: "restaurant", "cafe", "hospital", "atm", "hotel", "traffic_camera".',
             enum: [
+              'traffic_camera',
               'restaurant',
               'cafe',
               'hotel',

@@ -24,9 +24,16 @@ function toTitleCase(value: string): string {
     .join(' ');
 }
 
+const PLACE_TYPE_LABEL_OVERRIDES: Record<string, string> = {
+  traffic_camera: 'Camera giao thông',
+};
+
 function formatPrimaryPlaceType(types: string[]): string {
   const preferredType = types.find((type) => !GENERIC_PLACE_TYPES.has(type));
-  return preferredType ? toTitleCase(preferredType.replace(/_/g, ' ')) : 'Địa điểm';
+  if (!preferredType) return 'Địa điểm';
+  return (
+    PLACE_TYPE_LABEL_OVERRIDES[preferredType] || toTitleCase(preferredType.replace(/_/g, ' '))
+  );
 }
 
 function getRatingStarsHtml(rating: number): string {
@@ -99,18 +106,31 @@ export function buildPopupHtml(place: PopupPlaceData): string {
 // ── Marker Element ───────────────────────────────────────────────────
 
 export function createNearbyMarkerElement(
-  place: { name: string; photoUrl: string | null },
+  place: { name: string; photoUrl: string | null; types: string[] },
   index: number,
 ): HTMLElement {
   const element = document.createElement('div');
   element.className = 'gtel-nearby-marker';
   element.setAttribute('aria-label', `Địa điểm lân cận ${index + 1}: ${place.name}`);
+  const isTrafficCamera = place.types.includes('traffic_camera');
 
   if (place.photoUrl) {
     const safePhotoUrl = place.photoUrl.replace(/"/g, '%22');
     element.style.backgroundImage = `linear-gradient(145deg, rgba(37, 99, 235, 0.2), rgba(37, 99, 235, 0.55)), url("${safePhotoUrl}")`;
+  } else if (isTrafficCamera) {
+    element.style.backgroundImage = 'linear-gradient(145deg, #2563eb, #0ea5e9)';
+    const cameraIcon = document.createElement('span');
+    cameraIcon.textContent = '📹';
+    cameraIcon.style.fontSize = '14px';
+    cameraIcon.style.lineHeight = '1';
+    element.appendChild(cameraIcon);
   } else {
     element.style.backgroundImage = 'linear-gradient(145deg, #f59e0b, #f97316)';
+    const cameraIcon = document.createElement('span');
+    cameraIcon.textContent = '📍';
+    cameraIcon.style.fontSize = '14px';
+    cameraIcon.style.lineHeight = '1';
+    element.appendChild(cameraIcon);
   }
 
   return element;

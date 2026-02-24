@@ -3,7 +3,8 @@
  * Handles administrative boundary (RGHC) data: province list and boundary geometry.
  */
 
-import { GTEL_ADMIN_PROVINCES_URL, GTEL_MAPS_API_KEY } from './constants';
+import { GTEL_ADMIN_PROVINCES_URL, GTEL_MAPS_API_KEY, GTEL_NEARBY_SEARCH_URL } from './constants';
+import { haversineDistanceMeters, normalizeNearbyRadius } from './geo';
 import { mapState } from './state';
 
 // ── Types ────────────────────────────────────────────────────────────
@@ -47,6 +48,62 @@ interface ProvinceBoundaryResponse {
   licence: string;
 }
 
+interface GtelNearbySearchResponse {
+  statusCode: number;
+  status: string;
+  data: GtelNearbySearchItem[];
+}
+
+interface GtelNearbySearchItem {
+  id?: string;
+  types?: string[];
+  formattedAddress?: string;
+  plusCode?: {
+    compoundCode?: string;
+    globalCode?: string;
+  };
+  location?: {
+    latitude?: number;
+    longitude?: number;
+  };
+  displayName?: {
+    text?: string;
+    languageCode?: string;
+  };
+  extras?: {
+    code?: string;
+    cam_id?: string;
+    cam_type?: string;
+    cam_status?: string;
+    ptz?: boolean;
+    angle?: string;
+  };
+  distance?: number;
+}
+
+export interface NearbyCamera {
+  id: string;
+  name: string;
+  address: string;
+  types: string[];
+  lat: number;
+  lng: number;
+  distanceMeters: number;
+  cameraCode: string | null;
+  cameraId: string | null;
+  cameraType: string | null;
+  cameraStatus: string | null;
+  ptz: boolean | null;
+  angle: string | null;
+}
+
+export interface NearbyCameraSearchResult {
+  radius: number;
+  rawCount: number;
+  filteredOutCount: number;
+  cameras: NearbyCamera[];
+}
+
 // ── Helpers ──────────────────────────────────────────────────────────
 
 function assertApiKey(): string {
@@ -64,6 +121,73 @@ async function fetchGtelApi<T>(url: URL, errorPrefix: string): Promise<T> {
   });
   if (!res.ok) throw new Error(`${errorPrefix}: ${res.status}`);
   return res.json();
+}
+
+// ── Nearby Traffic Cameras ──────────────────────────────────────────
+
+export async function fetchNearbyCameras(args: {
+  location: { lat: number; lng: number };
+  keyword?: string;
+  radius?: number;
+}): Promise<NearbyCameraSearchResult> {
+  const apiKey = assertApiKey();
+  const radius = normalizeNearbyRadius(args.radius);
+
+  const url = new URL(GTEL_NEARBY_SEARCH_URL);
+  url.searchParams.set('location', `${args.location.lat},${args.location.lng}`);
+  url.searchParams.set('type', 'traffic_camera');
+  url.searchParams.set('radius', String(radius));
+  url.searchParams.set('apikey', apiKey);
+
+  const keyword = args.keyword?.trim();
+  if (keyword) {
+    url.searchParams.set('keyword', keyword);
+  }
+
+  const data = await fetchGtelApi<GtelNearbySearchResponse>(
+    url,
+    'Yêu cầu nearby camera giao thông thất bại',
+  );
+
+  const status = data.status || '';
+  const ok = status.toUpperCase() === 'OK' || data.statusCode === 200;
+  if (!ok) {
+    throw new Error(`Nearby camera lỗi (${status || data.statusCode || 'UNKNOWN'}).`);
+  }
+
+  const parsed = data.data
+    .map(
+      (item) => ({
+        id: item.id || `traffic-camera-${Math.random().toString(36).slice(2, 8)}`,
+        name: item.displayName?.text || 'Camera giao thông',
+        address: item.formattedAddress || item.plusCode?.compoundCode || 'Không có địa chỉ',
+        types: item.types || ['traffic_camera'],
+        lat: item.location?.latitude ?? Number.NaN,
+        lng: item.location?.longitude ?? Number.NaN,
+        cameraCode: item.extras?.code || null,
+        cameraId: item.extras?.cam_id || null,
+        cameraType: item.extras?.cam_type || null,
+        cameraStatus: item.extras?.cam_status || null,
+        ptz: typeof item.extras?.ptz === 'boolean' ? item.extras.ptz : null,
+        angle: item.extras?.angle || null,
+      }),
+    )
+    .filter((place) => Number.isFinite(place?.lat) && Number.isFinite(place?.lng));
+
+  const cameras = parsed
+    .map((place) => ({
+      ...place,
+      distanceMeters: haversineDistanceMeters(args.location, { lat: place.lat, lng: place.lng }),
+    }))
+    .filter((camera) => camera.distanceMeters <= radius)
+    .sort((a, b) => a.distanceMeters - b.distanceMeters);
+
+  return {
+    radius,
+    rawCount: parsed.length,
+    filteredOutCount: parsed.length - cameras.length,
+    cameras,
+  };
 }
 
 // ── Fetch Provinces ──────────────────────────────────────────────────

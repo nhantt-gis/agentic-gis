@@ -52,6 +52,7 @@ export interface ToolResult {
 export type DirectionsMode = 'driving' | 'walking' | 'bicycling' | 'transit' | 'motorbike';
 
 export type NearbyPlaceType =
+  | 'traffic_camera'
   | 'restaurant'
   | 'cafe'
   | 'hotel'

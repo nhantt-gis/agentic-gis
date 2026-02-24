@@ -7,10 +7,14 @@ import { Map, Marker, Popup, LngLatBounds } from 'maplibre-gl';
 
 import type { ToolResult, DirectionsMode, NearbyPlaceType } from '@/types';
 import { DIRECTIONS_SOURCE_ID, DIRECTIONS_LAYER_ID, MAX_NEARBY_MARKERS } from './constants';
-import { isCurrentLocationInput, getCurrentLocationCoordinates } from './geo';
+import {
+  isCurrentLocationInput,
+  getCurrentLocationCoordinates,
+  normalizeLocationText,
+} from './geo';
 import { buildPopupHtml, buildBoundaryPopupHtml, createNearbyMarkerElement } from './popup';
-import { textSearch, fetchDirections, fetchNearbyPlaces } from './google-api';
-import { findMatchingProvince, fetchProvinceBoundary } from './gtel-api';
+import { textSearch, fetchDirections, fetchNearbyPlaces, type NearbyPlace } from './google-api';
+import { findMatchingProvince, fetchProvinceBoundary, fetchNearbyCameras } from './gtel-api';
 import { clearAllMapVisuals, drawNearbyBuffer, drawBoundaryPolygon } from './visuals';
 import { mapState } from './state';
 
@@ -32,6 +36,17 @@ async function resolveNearbySearchCenter(
 
   const resolved = await textSearch(location);
   return { lat: resolved.lat, lng: resolved.lng, label: resolved.displayName };
+}
+
+const CAMERA_KEYWORD_PATTERNS = ['camera', 'camera giao thong', 'cam giao thong', 'traffic camera'];
+
+function isCameraNearbyRequest(keyword?: string | null, type?: NearbyPlaceType | null): boolean {
+  if (type === 'traffic_camera') return true;
+  if (type) return false;
+  if (!keyword) return false;
+
+  const normalized = normalizeLocationText(keyword);
+  return CAMERA_KEYWORD_PATTERNS.some((pattern) => normalized.includes(pattern));
 }
 
 // ── Tool: searchPlace ────────────────────────────────────────────────
@@ -235,6 +250,8 @@ async function nearbySearch(
       : needsReuse && ctx && ctx.minRating !== null
         ? ctx.minRating
         : undefined;
+  const isTrafficCameraSearch = isCameraNearbyRequest(effectiveKeyword, effectiveType);
+  const contextType = isTrafficCameraSearch ? 'traffic_camera' : effectiveType || null;
 
   if (!effectiveKeyword && !effectiveType) {
     throw new Error(
@@ -249,8 +266,42 @@ async function nearbySearch(
 
   clearAllMapVisuals(map);
 
-  const { radius, minRating, places, rawCount, filteredOutCount, ratingFilteredOutCount } =
-    await fetchNearbyPlaces({
+  let radius = 0;
+  let minRating: number | null = null;
+  let rawCount = 0;
+  let filteredOutCount = 0;
+  let ratingFilteredOutCount = 0;
+  let places: NearbyPlace[] = [];
+
+  if (isTrafficCameraSearch) {
+    const cameraResult = await fetchNearbyCameras({
+      location: { lat: center.lat, lng: center.lng },
+      keyword: effectiveKeyword,
+      radius: effectiveRadius,
+    });
+
+    radius = cameraResult.radius;
+    rawCount = cameraResult.rawCount;
+    filteredOutCount = cameraResult.filteredOutCount;
+    places = cameraResult.cameras.map(
+      (camera) => ({
+        id: camera.id,
+        name: camera.name,
+        address: camera.address,
+        rating: null,
+        userRatingsTotal: null,
+        businessStatus: camera.cameraStatus,
+        openNow: null,
+        types: camera.types,
+        lat: camera.lat,
+        lng: camera.lng,
+        distanceMeters: camera.distanceMeters,
+        photoReference: null,
+        photoUrl: null,
+      }),
+    );
+  } else {
+    const nearbyResult = await fetchNearbyPlaces({
       location: { lat: center.lat, lng: center.lng },
       keyword: effectiveKeyword,
       type: effectiveType,
@@ -258,9 +309,17 @@ async function nearbySearch(
       minRating: effectiveMinRating,
     });
 
+    radius = nearbyResult.radius;
+    minRating = nearbyResult.minRating;
+    rawCount = nearbyResult.rawCount;
+    filteredOutCount = nearbyResult.filteredOutCount;
+    ratingFilteredOutCount = nearbyResult.ratingFilteredOutCount;
+    places = nearbyResult.places;
+  }
+
   mapState.lastNearbySearchContext = {
     keyword: effectiveKeyword || null,
-    type: effectiveType || null,
+    type: contextType,
     radius,
     minRating,
     center: { lat: center.lat, lng: center.lng },
@@ -276,14 +335,14 @@ async function nearbySearch(
       message:
         `Không tìm thấy kết quả lân cận trong vùng buffer bán kính ${radius}m quanh ${center.label}.` +
         (rawCount > 0
-          ? ` Google trả về ${rawCount} điểm nhưng không điểm nào đạt điều kiện lọc hiện tại.`
+          ? ` API trả về ${rawCount} điểm nhưng không điểm nào đạt điều kiện lọc hiện tại.`
           : ''),
       data: {
         center,
         radius,
         bufferAreaKm2: Math.round(Math.PI * (radius / 1000) ** 2 * 100) / 100,
         keyword: effectiveKeyword || null,
-        type: effectiveType || null,
+        type: contextType,
         minRating,
         rawCount,
         filteredOutCount,
@@ -317,15 +376,13 @@ async function nearbySearch(
     success: true,
     message:
       `Đã tìm thấy ${places.length} địa điểm lân cận trong bán kính ${radius}m quanh ${center.label}. ` +
-      `Đang hiển thị ${visiblePlaces.length} điểm đầu tiên trên bản đồ.` +
-      (minRating !== null ? ` Đang lọc từ ${minRating.toFixed(1)} sao trở lên.` : '') +
-      (filteredOutCount > 0 ? ` Đã tự động lọc ${filteredOutCount} điểm ngoài buffer.` : ''),
+      `Đang hiển thị ${visiblePlaces.length} điểm đầu tiên trên bản đồ.`,
     data: {
       center,
       radius,
       bufferAreaKm2: Math.round(Math.PI * (radius / 1000) ** 2 * 100) / 100,
       keyword: effectiveKeyword || null,
-      type: effectiveType || null,
+      type: contextType,
       minRating,
       rawCount,
       filteredOutCount,
