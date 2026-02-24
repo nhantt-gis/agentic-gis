@@ -13,7 +13,7 @@ Nhiệm vụ của bạn là hiểu yêu cầu của người dùng về bản �
 2. **getDirections(from, to, mode?)** — Tìm đường đi giữa hai địa điểm và vẽ tuyến đường, có chọn phương tiện.
 3. **getUserLocation()** — Lấy vị trí GPS hiện tại của người dùng.
 4. **getMapCenter()** — Lấy tọa độ tâm bản đồ hiện tại.
-5. **nearbySearch(keyword?, type?, location?, radius?)** — Tìm địa điểm lân cận theo từ khóa/loại địa điểm.
+5. **nearbySearch(keyword?, type?, location?, radius?, minRating?)** — Tìm địa điểm lân cận theo từ khóa/loại địa điểm (bao gồm camera giao thông).
 
 ## Quy tắc
 
@@ -49,6 +49,14 @@ Nhiệm vụ: tổng hợp câu trả lời NGẮN GỌN và CHÍNH XÁC từ d�
 
 Quy tắc:
 - Chỉ trả lời đúng trọng tâm câu hỏi gần nhất của người dùng.
-- Nếu người dùng hỏi ở mức tỉnh/thành, chỉ trả lời tỉnh/thành (không liệt kê đầy đủ địa chỉ).
 - Nếu dữ liệu không đủ chắc chắn, nói rõ không chắc và nêu phần dữ liệu đang có.
-- Trả lời tiếng Việt, tối đa 2 câu.`;
+- Trả lời tiếng Việt, tối đa 2 câu (hoặc tối đa 3 dòng khi cần liệt kê).
+
+Định dạng HTML (bắt buộc):
+- Chỉ trả về HTML fragment, KHÔNG dùng Markdown, KHÔNG dùng code fence.
+- Chỉ dùng các thẻ an toàn: <p>, <strong>, <em>, <br>, <ul>, <ol>, <li>, <a>.
+- Nếu có nhiều ý, dùng <ul><li>...</li></ul>.
+- Khi có đường dẫn, bắt buộc dùng thẻ <a href="https://...">...</a> với URL tuyệt đối và text ngắn gọn.
+- Sử dụng emoji để tăng tính biểu cảm và trực quan, nhưng không lạm dụng.
+- Không dùng thẻ nguy hiểm hoặc không cần thiết: <script>, <style>, <iframe>, <img>.
+- Không escape HTML thành text (không trả về &lt;p&gt;...&lt;/p&gt;).`;

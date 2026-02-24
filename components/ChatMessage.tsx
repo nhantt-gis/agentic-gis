@@ -20,17 +20,19 @@ const USER_BUBBLE_CLASS =
   'max-w-[85%] rounded-2xl rounded-br-sm bg-indigo-600 px-3.5 py-2.5 text-[13.5px] leading-snug text-white';
 const ASSISTANT_BUBBLE_CLASS =
   'max-w-[85%] rounded-2xl rounded-bl-sm bg-gray-100 px-3.5 py-2.5 text-[13.5px] leading-snug text-gray-800';
+const ASSISTANT_HTML_CLASS =
+  'm-0 wrap-break-word whitespace-normal [&_a]:break-all [&_a]:font-medium [&_a]:text-blue-700 [&_a]:underline [&_a]:underline-offset-2 [&_p]:my-1 [&_ul]:my-1 [&_ul]:list-disc [&_ul]:space-y-0.5 [&_ul]:pl-5 [&_ol]:my-1 [&_ol]:list-decimal [&_ol]:space-y-0.5 [&_ol]:pl-5 [&_li]:my-1';
+
+const renderAssistantBubble = (content: string, toneClass?: string) => (
+  <div className='flex justify-start px-3 py-1'>
+    <div className={`${ASSISTANT_BUBBLE_CLASS} ${toneClass || ''}`}>
+      <p className='m-0 wrap-break-word whitespace-pre-wrap'>{content}</p>
+    </div>
+  </div>
+);
 
 function ChatMessage({ message }: ChatMessageProps) {
   const isUser = message.role === 'user';
-
-  const renderAssistantBubble = (content: string, toneClass?: string) => (
-    <div className='flex justify-start px-3 py-1'>
-      <div className={`${ASSISTANT_BUBBLE_CLASS} ${toneClass || ''}`}>
-        <p className='m-0 whitespace-pre-wrap wrap-break-word'>{content}</p>
-      </div>
-    </div>
-  );
 
   // ── Tool Call Log ────────────────────────────────────────────────
   if (message.toolCall) {
@@ -68,7 +70,14 @@ function ChatMessage({ message }: ChatMessageProps) {
   return (
     <div className={`flex px-3 py-1 ${isUser ? 'justify-end' : 'justify-start'}`}>
       <div className={isUser ? USER_BUBBLE_CLASS : ASSISTANT_BUBBLE_CLASS}>
-        <p className='m-0 whitespace-pre-wrap wrap-break-word'>{message.content}</p>
+        {isUser ? (
+          <div className='m-0 wrap-break-word whitespace-pre-wrap'>{message.content}</div>
+        ) : (
+          <div
+            className={ASSISTANT_HTML_CLASS}
+            dangerouslySetInnerHTML={{ __html: message.content }}
+          />
+        )}
       </div>
     </div>
   );
