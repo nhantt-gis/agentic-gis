@@ -3,7 +3,12 @@
  * Handles administrative boundary (RGHC) data: province list and boundary geometry.
  */
 
-import { GTEL_ADMIN_PROVINCES_URL, GTEL_MAPS_API_KEY, GTEL_NEARBY_SEARCH_URL } from './constants';
+import {
+  GTEL_ADMIN_PROVINCES_URL,
+  GTEL_CAMERA_PHOTO_URL,
+  GTEL_MAPS_API_KEY,
+  GTEL_NEARBY_SEARCH_URL,
+} from './constants';
 import { haversineDistanceMeters, normalizeNearbyRadius } from './geo';
 import { mapState } from './state';
 
@@ -88,6 +93,7 @@ export interface NearbyCamera {
   types: string[];
   lat: number;
   lng: number;
+  photoUrl: string | null;
   distanceMeters: number;
   cameraCode: string | null;
   cameraId: string | null;
@@ -113,6 +119,15 @@ function assertApiKey(): string {
     );
   }
   return GTEL_MAPS_API_KEY;
+}
+
+function createGtelCameraPhotoUrl(cameraId?: string | null): string | null {
+  if (!GTEL_MAPS_API_KEY || !cameraId) return null;
+
+  const photo = new URL(GTEL_CAMERA_PHOTO_URL);
+  photo.pathname += `/${cameraId}/snapshot.jpg`;
+  photo.searchParams.set('apikey', GTEL_MAPS_API_KEY);
+  return photo.toString();
 }
 
 async function fetchGtelApi<T>(url: URL, errorPrefix: string): Promise<T> {
@@ -155,9 +170,9 @@ export async function fetchNearbyCameras(args: {
     throw new Error(`Nearby camera lỗi (${status || data.statusCode || 'UNKNOWN'}).`);
   }
 
-  const parsed = data.data
-    .map(
-      (item) => ({
+  const parsed =
+    data.data
+      .map((item) => ({
         id: item.id || `traffic-camera-${Math.random().toString(36).slice(2, 8)}`,
         name: item.displayName?.text || 'Camera giao thông',
         address: item.formattedAddress || item.plusCode?.compoundCode || 'Không có địa chỉ',
@@ -170,9 +185,12 @@ export async function fetchNearbyCameras(args: {
         cameraStatus: item.extras?.cam_status || null,
         ptz: typeof item.extras?.ptz === 'boolean' ? item.extras.ptz : null,
         angle: item.extras?.angle || null,
-      }),
-    )
-    .filter((place) => Number.isFinite(place?.lat) && Number.isFinite(place?.lng));
+      }))
+      .filter((place) => Number.isFinite(place?.lat) && Number.isFinite(place?.lng))
+      .map((place) => ({
+        ...place,
+        photoUrl: createGtelCameraPhotoUrl(place.cameraId),
+      })) || [];
 
   const cameras = parsed
     .map((place) => ({
@@ -220,13 +238,16 @@ export async function fetchProvinces(): Promise<Province[]> {
  */
 export async function fetchProvinceBoundary(provCode: string): Promise<ProvinceBoundary> {
   const apiKey = assertApiKey();
-  
+
   const url = new URL(GTEL_ADMIN_PROVINCES_URL);
   url.pathname += `/${provCode}`;
   url.searchParams.set('geom_level', 'street');
   url.searchParams.set('apikey', apiKey);
-  
-  const data = await fetchGtelApi<ProvinceBoundaryResponse>(url, 'Yêu cầu ranh giới hành chính thất bại');
+
+  const data = await fetchGtelApi<ProvinceBoundaryResponse>(
+    url,
+    'Yêu cầu ranh giới hành chính thất bại',
+  );
 
   if (data.status !== 'OK' || !data.data) {
     throw new Error('Dữ liệu ranh giới hành chính không hợp lệ.');

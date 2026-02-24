@@ -17,6 +17,7 @@ export const GTEL_MAPS_API_KEY = process.env.NEXT_PUBLIC_GTEL_MAPS_API_KEY;
 export const GTEL_MAPS_STYLE_URL = 'https://maps.ots.vn/api/styles/v1/gtelmaps-streets-v1/style.json';
 export const GTEL_ADMIN_PROVINCES_URL = 'https://maps.ots.vn/api/admin-unit/provinces';
 export const GTEL_NEARBY_SEARCH_URL = 'https://maps.ots.vn/api/place/nearby-search';
+export const GTEL_CAMERA_PHOTO_URL = 'https://maps.ots.vn/api/layers/v1/camera_pt';
 
 // ── Map Layer / Source IDs ───────────────────────────────────────────
 

@@ -106,24 +106,16 @@ export function buildPopupHtml(place: PopupPlaceData): string {
 // ── Marker Element ───────────────────────────────────────────────────
 
 export function createNearbyMarkerElement(
-  place: { name: string; photoUrl: string | null; types: string[] },
+  place: { name: string; photoUrl: string | null },
   index: number,
 ): HTMLElement {
   const element = document.createElement('div');
   element.className = 'gtel-nearby-marker';
   element.setAttribute('aria-label', `Địa điểm lân cận ${index + 1}: ${place.name}`);
-  const isTrafficCamera = place.types.includes('traffic_camera');
 
   if (place.photoUrl) {
     const safePhotoUrl = place.photoUrl.replace(/"/g, '%22');
     element.style.backgroundImage = `linear-gradient(145deg, rgba(37, 99, 235, 0.2), rgba(37, 99, 235, 0.55)), url("${safePhotoUrl}")`;
-  } else if (isTrafficCamera) {
-    element.style.backgroundImage = 'linear-gradient(145deg, #2563eb, #0ea5e9)';
-    const cameraIcon = document.createElement('span');
-    cameraIcon.textContent = '📹';
-    cameraIcon.style.fontSize = '14px';
-    cameraIcon.style.lineHeight = '1';
-    element.appendChild(cameraIcon);
   } else {
     element.style.backgroundImage = 'linear-gradient(145deg, #f59e0b, #f97316)';
     const cameraIcon = document.createElement('span');

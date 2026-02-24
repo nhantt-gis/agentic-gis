@@ -283,23 +283,21 @@ async function nearbySearch(
     radius = cameraResult.radius;
     rawCount = cameraResult.rawCount;
     filteredOutCount = cameraResult.filteredOutCount;
-    places = cameraResult.cameras.map(
-      (camera) => ({
-        id: camera.id,
-        name: camera.name,
-        address: camera.address,
-        rating: null,
-        userRatingsTotal: null,
-        businessStatus: camera.cameraStatus,
-        openNow: null,
-        types: camera.types,
-        lat: camera.lat,
-        lng: camera.lng,
-        distanceMeters: camera.distanceMeters,
-        photoReference: null,
-        photoUrl: null,
-      }),
-    );
+    places = cameraResult.cameras.map((camera) => ({
+      id: camera.id,
+      name: camera.name,
+      address: camera.address,
+      rating: null,
+      userRatingsTotal: null,
+      businessStatus: camera.cameraStatus,
+      openNow: null,
+      types: camera.types,
+      lat: camera.lat,
+      lng: camera.lng,
+      distanceMeters: camera.distanceMeters,
+      photoReference: null,
+      photoUrl: camera.photoUrl,
+    }));
   } else {
     const nearbyResult = await fetchNearbyPlaces({
       location: { lat: center.lat, lng: center.lng },
@@ -357,7 +355,7 @@ async function nearbySearch(
 
   visiblePlaces.forEach((place, index) => {
     const markerElement = createNearbyMarkerElement(place, index);
-    const marker = new Marker({ element: markerElement, anchor: 'bottom' })
+    const marker = new Marker({ element: markerElement })
       .setLngLat([place.lng, place.lat])
       .setPopup(
         new Popup({ offset: 22, className: 'gtel-google-popup', closeButton: false }).setHTML(
@@ -425,9 +423,7 @@ async function getUserLocation(map: Map): Promise<ToolResult> {
 
         mapState.userLocationMarker = new Marker({ color: '#10B981' })
           .setLngLat([longitude, latitude])
-          .setPopup(
-            new Popup({ closeButton: false }).setHTML('<strong>📍 Vị trí của bạn</strong>'),
-          )
+          .setPopup(new Popup({ closeButton: false }).setHTML('<strong>📍 Vị trí của bạn</strong>'))
           .addTo(map);
 
         resolve({
