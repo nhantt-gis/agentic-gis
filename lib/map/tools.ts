@@ -3,20 +3,21 @@
  * function-call decisions. Each tool manipulates the MapLibre map instance.
  */
 
-import { Map, Marker, Popup, LngLatBounds } from 'maplibre-gl';
+import { Map, LngLatBounds } from 'maplibre-gl';
 
 import type { ToolResult, DirectionsMode, NearbyPlaceType } from '@/types';
-import { DIRECTIONS_SOURCE_ID, DIRECTIONS_LAYER_ID, MAX_NEARBY_MARKERS } from './constants';
+import { MAX_NEARBY_MARKERS } from './constants';
 import {
   isCurrentLocationInput,
   getCurrentLocationCoordinates,
   normalizeLocationText,
+  buildBufferCoordinates,
 } from './geo';
-import { buildPopupHtml, buildBoundaryPopupHtml, createNearbyMarkerElement } from './popup';
 import { textSearch, fetchDirections, fetchNearbyPlaces, type NearbyPlace } from './google-api';
 import { findMatchingProvince, fetchProvinceBoundary, fetchNearbyCameras } from './gtel-api';
-import { clearAllMapVisuals, drawNearbyBuffer, drawBoundaryPolygon } from './visuals';
-import { mapState } from './state';
+import { mapState } from './map-store';
+import { markerActions } from './marker-store';
+import { layerActions } from './layer-store';
 
 // ── Resolve Helpers ──────────────────────────────────────────────────
 
@@ -52,8 +53,8 @@ function isCameraNearbyRequest(keyword?: string | null, type?: NearbyPlaceType |
 // ── Tool: searchPlace ────────────────────────────────────────────────
 
 async function searchPlace(map: Map, args: { query: string }): Promise<ToolResult> {
-  clearAllMapVisuals(map);
-  mapState.lastNearbySearchContext = null;
+  layerActions.clearAll();
+  markerActions.clearAll();
 
   // ── Check for province/city boundary match (RGHC) ──────────────
   const matchedProvince = findMatchingProvince(args.query);
@@ -63,29 +64,23 @@ async function searchPlace(map: Map, args: { query: string }): Promise<ToolResul
 
   // ── Normal Google text search ──────────────────────────────────
   const location = await textSearch(args.query);
-  const popupHtml = buildPopupHtml({
-    name: location.name,
-    address: location.address,
-    rating: location.rating,
-    userRatingsTotal: null,
-    distanceMeters: null,
-    types: location.types,
-    openNow: null,
-    photoUrl: location.photoUrl,
-  });
 
   map.flyTo({ center: [location.lng, location.lat], zoom: 14, essential: true, duration: 2500 });
 
-  mapState.searchPlaceMarker = new Marker({ color: '#4F46E5' })
-    .setLngLat([location.lng, location.lat])
-    .setPopup(
-      new Popup({ offset: 22, className: 'gtel-google-popup', closeButton: false }).setHTML(
-        popupHtml,
-      ),
-    )
-    .addTo(map);
-
-  mapState.searchPlaceMarker.togglePopup();
+  markerActions.setSearchPlace({
+    lngLat: [location.lng, location.lat],
+    color: '#4F46E5',
+    popupData: {
+      name: location.name,
+      address: location.address,
+      rating: location.rating,
+      userRatingsTotal: null,
+      distanceMeters: null,
+      types: location.types,
+      openNow: null,
+      photoUrl: location.photoUrl,
+    },
+  });
 
   return {
     success: true,
@@ -110,27 +105,29 @@ async function searchPlace(map: Map, args: { query: string }): Promise<ToolResul
 async function searchProvinceBoundary(map: Map, provCode: string): Promise<ToolResult> {
   const boundary = await fetchProvinceBoundary(provCode);
 
-  // Draw the polygon boundary on the map
-  drawBoundaryPolygon(map, boundary.geom, boundary.viewport);
+  // Draw the polygon boundary on the map (via React store)
+  layerActions.setBoundary({ geom: boundary.geom, viewport: boundary.viewport });
 
-  // Add a marker at the center with popup
-  const popupHtml = buildBoundaryPopupHtml({
-    name: boundary.prov_fname,
-    nameEn: boundary.prov_fne,
-    level: boundary.level,
-    center: boundary.center,
+  // Fit to viewport if provided
+  if (boundary.viewport) {
+    const bounds = new LngLatBounds(
+      [boundary.viewport.northeast.lng, boundary.viewport.northeast.lat],
+      [boundary.viewport.southwest.lng, boundary.viewport.southwest.lat],
+    );
+    map.fitBounds(bounds, { padding: 60, duration: 2000 });
+  }
+
+  // Add a marker at the center with popup (via React store)
+  markerActions.setBoundary({
+    lngLat: [boundary.center.lng, boundary.center.lat],
+    color: '#4338CA',
+    popupData: {
+      name: boundary.prov_fname,
+      nameEn: boundary.prov_fne,
+      level: boundary.level,
+      center: boundary.center,
+    },
   });
-
-  mapState.searchPlaceMarker = new Marker({ color: '#4338CA' })
-    .setLngLat([boundary.center.lng, boundary.center.lat])
-    .setPopup(
-      new Popup({ offset: 22, className: 'gtel-google-popup', closeButton: false }).setHTML(
-        popupHtml,
-      ),
-    )
-    .addTo(map);
-
-  mapState.searchPlaceMarker.togglePopup();
 
   return {
     success: true,
@@ -153,48 +150,31 @@ async function getDirections(
   map: Map,
   args: { from: string; to: string; mode?: DirectionsMode },
 ): Promise<ToolResult> {
-  clearAllMapVisuals(map);
-  mapState.lastNearbySearchContext = null;
+  layerActions.clearAll();
+  markerActions.clearAll();
 
   const route = await fetchDirections(args.from, args.to, args.mode);
 
-  map.addSource(DIRECTIONS_SOURCE_ID, {
-    type: 'geojson',
-    data: {
-      type: 'Feature',
-      properties: {},
-      geometry: { type: 'LineString', coordinates: route.coordinates },
-    },
-  });
-
-  map.addLayer({
-    id: DIRECTIONS_LAYER_ID,
-    type: 'line',
-    source: DIRECTIONS_SOURCE_ID,
-    layout: { 'line-join': 'round', 'line-cap': 'round' },
-    paint: { 'line-color': '#2563EB', 'line-width': 5, 'line-opacity': 0.9 },
-  });
+  // Draw direction route via React store
+  layerActions.setDirections({ coordinates: route.coordinates });
 
   const startCoord = route.coordinates[0];
   const endCoord = route.coordinates[route.coordinates.length - 1];
 
-  mapState.directionsStartMarker = new Marker({ color: '#22C55E' })
-    .setLngLat(startCoord)
-    .setPopup(
-      new Popup({ closeButton: false }).setHTML(
-        `<strong>Điểm đi:</strong><br/>${route.startAddress}`,
-      ),
-    )
-    .addTo(map);
-
-  mapState.directionsEndMarker = new Marker({ color: '#EF4444' })
-    .setLngLat(endCoord)
-    .setPopup(
-      new Popup({ closeButton: false }).setHTML(
-        `<strong>Điểm đến:</strong><br/>${route.endAddress}`,
-      ),
-    )
-    .addTo(map);
+  markerActions.setDirections(
+    {
+      lngLat: startCoord as [number, number],
+      color: '#22C55E',
+      label: 'Điểm đi:',
+      address: route.startAddress,
+    },
+    {
+      lngLat: endCoord as [number, number],
+      color: '#EF4444',
+      label: 'Điểm đến:',
+      address: route.endAddress,
+    },
+  );
 
   const bounds = route.coordinates.reduce(
     (acc, coord) => acc.extend(coord),
@@ -237,19 +217,11 @@ async function nearbySearch(
 ): Promise<ToolResult> {
   const keyword = args.keyword?.trim() || null;
   const type = args.type || null;
-  const ctx = mapState.lastNearbySearchContext;
-  const needsReuse = !keyword && !type && !!ctx;
 
-  const effectiveKeyword = keyword || ctx?.keyword || undefined;
-  const effectiveType = type || ctx?.type || undefined;
-  const effectiveRadius =
-    typeof args.radius === 'number' ? args.radius : needsReuse && ctx ? ctx.radius : undefined;
-  const effectiveMinRating =
-    typeof args.minRating === 'number'
-      ? args.minRating
-      : needsReuse && ctx && ctx.minRating !== null
-        ? ctx.minRating
-        : undefined;
+  const effectiveKeyword = keyword || undefined;
+  const effectiveType = type || undefined;
+  const effectiveRadius = args.radius || undefined;
+  const effectiveMinRating = args.minRating || undefined;
   const isTrafficCameraSearch = isCameraNearbyRequest(effectiveKeyword, effectiveType);
   const contextType = isTrafficCameraSearch ? 'traffic_camera' : effectiveType || null;
 
@@ -259,12 +231,10 @@ async function nearbySearch(
     );
   }
 
-  const center =
-    !args.location && needsReuse && ctx
-      ? { lat: ctx.center.lat, lng: ctx.center.lng, label: ctx.label }
-      : await resolveNearbySearchCenter(map, args.location);
+  const center = await resolveNearbySearchCenter(map, args.location);
 
-  clearAllMapVisuals(map);
+  layerActions.clearAll();
+  markerActions.clearAll();
 
   let radius = 0;
   let minRating: number | null = null;
@@ -315,16 +285,14 @@ async function nearbySearch(
     places = nearbyResult.places;
   }
 
-  mapState.lastNearbySearchContext = {
-    keyword: effectiveKeyword || null,
-    type: contextType,
-    radius,
-    minRating,
-    center: { lat: center.lat, lng: center.lng },
-    label: center.label,
-  };
+  // Draw nearby buffer circle via React store
+  const ring = buildBufferCoordinates({ lng: center.lng, lat: center.lat }, radius);
+  layerActions.setNearbyBuffer({ ring, radiusMeters: radius });
 
-  const bufferBounds = drawNearbyBuffer(map, { lng: center.lng, lat: center.lat }, radius);
+  const bufferBounds = ring.reduce(
+    (acc, coord) => acc.extend(coord),
+    new LngLatBounds([center.lng, center.lat], [center.lng, center.lat]),
+  );
 
   if (places.length === 0) {
     map.fitBounds(bufferBounds, { padding: 80, duration: 1000, maxZoom: 15 });
@@ -353,18 +321,25 @@ async function nearbySearch(
   const visiblePlaces = places.slice(0, MAX_NEARBY_MARKERS);
   const bounds = new LngLatBounds(bufferBounds.getSouthWest(), bufferBounds.getNorthEast());
 
-  visiblePlaces.forEach((place, index) => {
-    const markerElement = createNearbyMarkerElement(place, index);
-    const marker = new Marker({ element: markerElement })
-      .setLngLat([place.lng, place.lat])
-      .setPopup(
-        new Popup({ offset: 22, className: 'gtel-google-popup', closeButton: false }).setHTML(
-          buildPopupHtml(place),
-        ),
-      )
-      .addTo(map);
+  markerActions.setNearbyPlaces(
+    visiblePlaces.map((place) => ({
+      lngLat: [place.lng, place.lat] as [number, number],
+      popupData: {
+        name: place.name,
+        address: place.address,
+        rating: place.rating,
+        userRatingsTotal: place.userRatingsTotal,
+        distanceMeters: place.distanceMeters,
+        types: place.types,
+        openNow: place.openNow,
+        photoUrl: place.photoUrl,
+      },
+      photoUrl: place.photoUrl,
+      name: place.name,
+    })),
+  );
 
-    mapState.nearbyPlaceMarkers.push(marker);
+  visiblePlaces.forEach((place) => {
     bounds.extend([place.lng, place.lat]);
   });
 
@@ -406,8 +381,8 @@ async function nearbySearch(
 // ── Tool: getUserLocation ────────────────────────────────────────────
 
 async function getUserLocation(map: Map): Promise<ToolResult> {
-  clearAllMapVisuals(map);
-  mapState.lastNearbySearchContext = null;
+  layerActions.clearAll();
+  markerActions.clearAll();
 
   return new Promise((resolve) => {
     if (!navigator.geolocation) {
@@ -421,10 +396,7 @@ async function getUserLocation(map: Map): Promise<ToolResult> {
 
         map.flyTo({ center: [longitude, latitude], zoom: 15, essential: true, duration: 2000 });
 
-        mapState.userLocationMarker = new Marker({ color: '#10B981' })
-          .setLngLat([longitude, latitude])
-          .setPopup(new Popup({ closeButton: false }).setHTML('<strong>📍 Vị trí của bạn</strong>'))
-          .addTo(map);
+        markerActions.setUserLocation({ lngLat: [longitude, latitude] });
 
         resolve({
           success: true,

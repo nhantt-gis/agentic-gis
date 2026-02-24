@@ -13,11 +13,15 @@ import Map, {
   ScaleControl,
   GeolocateControl,
   type MapRef,
+  type MapMouseEvent,
 } from 'react-map-gl/maplibre';
 
 // re-export the raw MapLibre type so tools can use it
 import type { Map as MaplibreMap } from 'maplibre-gl';
 import { GTEL_MAPS_API_KEY, GTEL_MAPS_STYLE_URL } from '@/lib/map/constants';
+import { markerActions } from '@/lib/map/marker-store';
+import MapMarkers from './MapMarkers';
+import MapLayers from './MapLayers';
 
 // ── Default map configuration ─────────────────────────────────────
 
@@ -51,6 +55,20 @@ const MapView = forwardRef<MapViewHandle, MapViewProps>(({ onMapReady }, ref) =>
     }
   }, [onMapReady]);
 
+  const handleMapClick = useCallback((event: MapMouseEvent) => {
+    const target = event.originalEvent.target;
+    if (target instanceof HTMLElement) {
+      if (
+        target.closest('.maplibregl-marker') ||
+        target.closest('.maplibregl-popup') ||
+        target.closest('.maplibregl-ctrl')
+      ) {
+        return;
+      }
+    }
+    markerActions.closePopup();
+  }, []);
+
   return (
     <Map
       ref={mapRef}
@@ -62,6 +80,7 @@ const MapView = forwardRef<MapViewHandle, MapViewProps>(({ onMapReady }, ref) =>
       style={{ width: '100%', height: '100%' }}
       mapStyle={mapStyle.toString()}
       onLoad={handleMapLoad}
+      onClick={handleMapClick}
       canvasContextAttributes={{ preserveDrawingBuffer: true }}
       hash={true}
     >
@@ -72,6 +91,8 @@ const MapView = forwardRef<MapViewHandle, MapViewProps>(({ onMapReady }, ref) =>
         positionOptions={{ enableHighAccuracy: true }}
         trackUserLocation={false}
       />
+      <MapMarkers />
+      <MapLayers />
     </Map>
   );
 });

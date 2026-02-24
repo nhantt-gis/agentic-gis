@@ -10,7 +10,7 @@ import {
   GTEL_NEARBY_SEARCH_URL,
 } from './constants';
 import { haversineDistanceMeters, normalizeNearbyRadius } from './geo';
-import { mapState } from './state';
+import { mapState } from './map-store';
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -227,7 +227,7 @@ export async function fetchProvinces(): Promise<Province[]> {
     return [];
   }
 
-  mapState.provinces = data.data;
+  mapState.setProvinces(data.data);
   return data.data;
 }
 
