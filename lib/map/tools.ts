@@ -362,7 +362,7 @@ async function nearbySearch(
       ratingFilteredOutCount,
       totalFound: places.length,
       shown: visiblePlaces.length,
-      places: visiblePlaces.slice(0, 5).map((place) => ({
+      places: visiblePlaces.slice(0, 3).map((place) => ({
         name: place.name,
         address: place.address,
         rating: place.rating,

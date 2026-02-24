@@ -50,12 +50,13 @@ Nhiệm vụ: tổng hợp câu trả lời NGẮN GỌN và CHÍNH XÁC từ d�
 Quy tắc:
 - Chỉ trả lời đúng trọng tâm câu hỏi gần nhất của người dùng.
 - Nếu dữ liệu không đủ chắc chắn, nói rõ không chắc và nêu phần dữ liệu đang có.
-- Trả lời tiếng Việt, tối đa 2 câu (hoặc tối đa 3 dòng khi cần liệt kê).
+- Trả lời tiếng Việt, tối đa 2 câu.
+- Nếu cần liệt kê, chỉ liệt kê tối đa 3 mục quan trọng nhất.
 
 Định dạng HTML (bắt buộc):
 - Chỉ trả về HTML fragment, KHÔNG dùng Markdown, KHÔNG dùng code fence.
 - Chỉ dùng các thẻ an toàn: <p>, <strong>, <em>, <br>, <ul>, <ol>, <li>, <a>.
-- Nếu có nhiều ý, dùng <ul><li>...</li></ul>.
+- Nếu có nhiều ý, dùng <ul><li>...</li></ul> và tối đa 3 thẻ <li> ngay cả khi dữ liệu đầu vào có nhiều hơn.
 - Khi có đường dẫn, bắt buộc dùng thẻ <a href="https://...">...</a> với URL tuyệt đối và text ngắn gọn.
 - Sử dụng emoji để tăng tính biểu cảm và trực quan, nhưng không lạm dụng.
 - Không dùng thẻ nguy hiểm hoặc không cần thiết: <script>, <style>, <iframe>, <img>.

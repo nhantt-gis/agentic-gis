@@ -27,6 +27,8 @@ const OPENROUTER_BASE_URL = process.env.OPENROUTER_BASE_URL || 'https://openrout
 const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini';
 const OPENROUTER_APP_NAME = process.env.OPENROUTER_APP_NAME || 'GTEL Maps Copilot';
 const OPENROUTER_SITE_URL = process.env.OPENROUTER_SITE_URL || 'http://localhost:3000';
+const OPENROUTER_TOOL_MAX_TOKENS = Number(process.env.OPENROUTER_TOOL_MAX_TOKENS || 1024);
+const OPENROUTER_RESPONSE_MAX_TOKENS = Number(process.env.OPENROUTER_RESPONSE_MAX_TOKENS || 768);
 
 let _openrouter: OpenAI | null = null;
 
@@ -87,7 +89,7 @@ async function callLLM(
         model: OPENROUTER_MODEL,
         messages,
         temperature: 0.1,
-        max_tokens: 256,
+        max_tokens: OPENROUTER_RESPONSE_MAX_TOKENS,
       })
     : await client.chat.completions.create({
         model: OPENROUTER_MODEL,
@@ -95,7 +97,7 @@ async function callLLM(
         tools: MAP_TOOL_SCHEMAS,
         tool_choice: 'auto',
         temperature: 0.1,
-        max_tokens: 1024,
+        max_tokens: OPENROUTER_TOOL_MAX_TOKENS,
       });
 
   const choice = completion.choices[0];
