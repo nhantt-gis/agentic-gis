@@ -12,6 +12,9 @@ import {
   NEARBY_BUFFER_SOURCE_ID,
   NEARBY_BUFFER_FILL_LAYER_ID,
   NEARBY_BUFFER_OUTLINE_LAYER_ID,
+  BOUNDARY_SOURCE_ID,
+  BOUNDARY_FILL_LAYER_ID,
+  BOUNDARY_OUTLINE_LAYER_ID,
 } from './constants';
 import { buildBufferCoordinates } from './geo';
 import { mapState } from './state';
@@ -87,6 +90,74 @@ export function clearAllMapVisuals(map: Map): void {
   clearDirectionsVisuals(map);
   clearNearbyVisuals(map);
   clearPointMarkers();
+  clearBoundaryVisuals(map);
+}
+
+// ── Boundary Visuals ─────────────────────────────────────────────────
+
+function clearBoundaryLayers(map: Map): void {
+  removeLayerIfExists(map, BOUNDARY_FILL_LAYER_ID);
+  removeLayerIfExists(map, BOUNDARY_OUTLINE_LAYER_ID);
+  removeSourceIfExists(map, BOUNDARY_SOURCE_ID);
+}
+
+export function clearBoundaryVisuals(map: Map): void {
+  clearBoundaryLayers(map);
+}
+
+/**
+ * Draw a MultiPolygon/Polygon boundary on the map and fit bounds to it.
+ */
+export function drawBoundaryPolygon(
+  map: Map,
+  geom: { type: string; coordinates: number[][][][] },
+  viewport?: {
+    northeast: { lat: number; lng: number };
+    southwest: { lat: number; lng: number };
+  },
+): void {
+  clearBoundaryLayers(map);
+
+  const geojsonData: GeoJSON.Feature = {
+    type: 'Feature',
+    properties: {},
+    geometry: geom as GeoJSON.Geometry,
+  };
+
+  map.addSource(BOUNDARY_SOURCE_ID, {
+    type: 'geojson',
+    data: geojsonData,
+  });
+
+  map.addLayer({
+    id: BOUNDARY_FILL_LAYER_ID,
+    type: 'fill',
+    source: BOUNDARY_SOURCE_ID,
+    paint: {
+      'fill-color': '#4F46E5',
+      'fill-opacity': 0.15,
+    },
+  });
+
+  map.addLayer({
+    id: BOUNDARY_OUTLINE_LAYER_ID,
+    type: 'line',
+    source: BOUNDARY_SOURCE_ID,
+    paint: {
+      'line-color': '#4338CA',
+      'line-width': 2.5,
+      'line-opacity': 0.85,
+    },
+  });
+
+  // Fit to viewport if provided, otherwise compute from geometry
+  if (viewport) {
+    const bounds = new LngLatBounds(
+      [viewport.northeast.lng, viewport.northeast.lat],
+      [viewport.southwest.lng, viewport.southwest.lat],
+    );
+    map.fitBounds(bounds, { padding: 60, duration: 2000 });
+  }
 }
 
 // ── Draw Buffer ──────────────────────────────────────────────────────

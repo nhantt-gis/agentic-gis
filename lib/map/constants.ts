@@ -15,6 +15,7 @@ export const GOOGLE_MAPS_NEARBY_SEARCH_URL = 'https://maps.googleapis.com/maps/a
 // ── GTEL Maps API ────────────────────────────────────────────────────
 export const GTEL_MAPS_API_KEY = process.env.NEXT_PUBLIC_GTEL_MAPS_API_KEY;
 export const GTEL_MAPS_STYLE_URL = 'https://maps.ots.vn/api/styles/v1/gtelmaps-streets-v1/style.json';
+export const GTEL_ADMIN_PROVINCES_URL = 'https://maps.ots.vn/api/admin-unit/provinces';
 
 // ── Map Layer / Source IDs ───────────────────────────────────────────
 
@@ -23,6 +24,9 @@ export const DIRECTIONS_LAYER_ID = 'directions-route-layer';
 export const NEARBY_BUFFER_SOURCE_ID = 'nearby-buffer-source';
 export const NEARBY_BUFFER_FILL_LAYER_ID = 'nearby-buffer-fill-layer';
 export const NEARBY_BUFFER_OUTLINE_LAYER_ID = 'nearby-buffer-outline-layer';
+export const BOUNDARY_SOURCE_ID = 'boundary-source';
+export const BOUNDARY_FILL_LAYER_ID = 'boundary-fill-layer';
+export const BOUNDARY_OUTLINE_LAYER_ID = 'boundary-outline-layer';
 
 // ── Defaults ─────────────────────────────────────────────────────────
 
@@ -66,6 +70,7 @@ export const DIRECTIONS_MODE_LABELS: Record<DirectionsMode, string> = {
 
 export const TOOL_ACTION_LABELS: Record<string, string> = {
   searchPlace: 'tìm địa điểm',
+  searchBoundary: 'tìm ranh giới hành chính',
   getDirections: 'vẽ chỉ đường',
   nearbySearch: 'tìm địa điểm lân cận',
   getUserLocation: 'xác định vị trí của bạn',

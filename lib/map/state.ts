@@ -7,6 +7,7 @@
 
 import type { Marker } from 'maplibre-gl';
 import type { NearbyPlaceType } from '@/types';
+import type { Province } from './gtel-api';
 
 export interface NearbySearchContext {
   keyword: string | null;
@@ -28,4 +29,5 @@ export const mapState = {
   searchPlaceMarker: null as Marker | null,
   userLocationMarker: null as Marker | null,
   lastNearbySearchContext: null as NearbySearchContext | null,
+  provinces: [] as Province[],
 };

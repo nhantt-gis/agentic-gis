@@ -115,3 +115,28 @@ export function createNearbyMarkerElement(
 
   return element;
 }
+
+// ── Boundary Popup HTML ──────────────────────────────────────────────
+
+export interface BoundaryPlaceData {
+  name: string;
+  nameEn: string;
+  level: string;
+  center: { lat: number; lng: number };
+}
+
+export function buildBoundaryPopupHtml(place: BoundaryPlaceData): string {
+  const safeName = escapeHtml(place.name);
+  const safeNameEn = escapeHtml(place.nameEn);
+  const safeLevel = escapeHtml(place.level);
+
+  return `<div style="background:#FFFFFF;">
+    <div style="height:80px;background:linear-gradient(135deg,#4338CA 0%,#6366F1 45%,#818CF8 100%);display:flex;align-items:center;justify-content:center;color:#fff;font-size:34px;">🏛️</div>
+    <div style="padding:12px 14px 14px;">
+      <div style="font-size:18px;line-height:1.25;font-weight:600;color:#111827;word-break:break-word;">${safeName}</div>
+      <div style="margin-top:4px;font-size:13px;color:#6B7280;">${safeNameEn}</div>
+      <div style="margin-top:6px;display:inline-block;padding:2px 8px;border-radius:9999px;background:#EEF2FF;color:#4338CA;font-size:12px;font-weight:600;">${safeLevel}</div>
+      <div style="margin-top:6px;font-size:12px;color:#9CA3AF;">Tọa độ: ${place.center.lat.toFixed(4)}, ${place.center.lng.toFixed(4)}</div>
+    </div>
+  </div>`;
+}

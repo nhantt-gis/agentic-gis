@@ -8,9 +8,10 @@ import { Map, Marker, Popup, LngLatBounds } from 'maplibre-gl';
 import type { ToolResult, DirectionsMode, NearbyPlaceType } from '@/types';
 import { DIRECTIONS_SOURCE_ID, DIRECTIONS_LAYER_ID, MAX_NEARBY_MARKERS } from './constants';
 import { isCurrentLocationInput, getCurrentLocationCoordinates } from './geo';
-import { buildPopupHtml, createNearbyMarkerElement } from './popup';
+import { buildPopupHtml, buildBoundaryPopupHtml, createNearbyMarkerElement } from './popup';
 import { textSearch, fetchDirections, fetchNearbyPlaces } from './google-api';
-import { clearAllMapVisuals, drawNearbyBuffer } from './visuals';
+import { findMatchingProvince, fetchProvinceBoundary } from './gtel-api';
+import { clearAllMapVisuals, drawNearbyBuffer, drawBoundaryPolygon } from './visuals';
 import { mapState } from './state';
 
 // ── Resolve Helpers ──────────────────────────────────────────────────
@@ -39,6 +40,13 @@ async function searchPlace(map: Map, args: { query: string }): Promise<ToolResul
   clearAllMapVisuals(map);
   mapState.lastNearbySearchContext = null;
 
+  // ── Check for province/city boundary match (RGHC) ──────────────
+  const matchedProvince = findMatchingProvince(args.query);
+  if (matchedProvince) {
+    return searchProvinceBoundary(map, matchedProvince.prov_code);
+  }
+
+  // ── Normal Google text search ──────────────────────────────────
   const location = await textSearch(args.query);
   const popupHtml = buildPopupHtml({
     name: location.name,
@@ -78,6 +86,48 @@ async function searchPlace(map: Map, args: { query: string }): Promise<ToolResul
       types: location.types,
       photoReference: location.photoReference,
       photoUrl: location.photoUrl,
+    },
+  };
+}
+
+// ── Tool: searchProvinceBoundary ─────────────────────────────────────
+
+async function searchProvinceBoundary(map: Map, provCode: string): Promise<ToolResult> {
+  const boundary = await fetchProvinceBoundary(provCode);
+
+  // Draw the polygon boundary on the map
+  drawBoundaryPolygon(map, boundary.geom, boundary.viewport);
+
+  // Add a marker at the center with popup
+  const popupHtml = buildBoundaryPopupHtml({
+    name: boundary.prov_fname,
+    nameEn: boundary.prov_fne,
+    level: boundary.level,
+    center: boundary.center,
+  });
+
+  mapState.searchPlaceMarker = new Marker({ color: '#4338CA' })
+    .setLngLat([boundary.center.lng, boundary.center.lat])
+    .setPopup(
+      new Popup({ offset: 22, className: 'gtel-google-popup', closeButton: false }).setHTML(
+        popupHtml,
+      ),
+    )
+    .addTo(map);
+
+  mapState.searchPlaceMarker.togglePopup();
+
+  return {
+    success: true,
+    message: `Đã hiển thị ranh giới hành chính của ${boundary.prov_fname} (${boundary.prov_fne}) — ${boundary.level}.`,
+    data: {
+      provCode: boundary.prov_code,
+      name: boundary.prov_fname,
+      nameEn: boundary.prov_fne,
+      level: boundary.level,
+      center: boundary.center,
+      viewport: boundary.viewport,
+      geomLevel: boundary.geomLevel,
     },
   };
 }

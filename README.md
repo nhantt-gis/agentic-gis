@@ -11,14 +11,9 @@
 
 ## 🎯 What This Demo Does
 
-GTEL Maps Copilot is an Agentic GIS demo where users can type or speak commands such as:
-
-- `Tìm chợ Bến Thành`
-- `Chỉ đường từ vị trí hiện tại đến sân bay Tân Sơn Nhất`
-- `Tìm bãi gửi xe gần chợ Bến Thành`
-- `Chỉ lấy các bãi gửi xe trên 4 sao`
-
-The model does not manipulate the map directly. It selects tools, the frontend executes them on MapLibre, then the assistant returns a user-friendly answer.
+GTEL Maps Copilot is an Agentic GIS demo where users can type or speak commands.
+The model does not manipulate the map directly. 
+It selects tools, the frontend executes them on MapLibre, then the assistant returns a user-friendly answer.
 
 ---
 
@@ -27,7 +22,7 @@ The model does not manipulate the map directly. It selects tools, the frontend e
 ```text
 User (chat/voice)
    ↓
-/api/map-agent (OpenRouter, function calling)
+First AI pass (function calling)
    ↓
 Tool calls (searchPlace / getDirections / nearbySearch / ...)
    ↓
@@ -39,7 +34,7 @@ Second AI pass (responseOnly): summarize final answer from tool outputs
 ### How It Works
 
 1. User sends a message in chat (or voice input).
-2. `/api/map-agent` calls OpenRouter with tool schemas.
+2. Frontend sends message to `/api/map-agent` endpoint to get tool calls (with caching).
 3. Model returns tool calls.
 4. Frontend executes tools and updates map.
 5. Frontend sends tool outputs back for a grounded final response (`responseOnly` mode).
@@ -58,7 +53,6 @@ Second AI pass (responseOnly): summarize final answer from tool outputs
   - radius buffer rendering on map,
   - strict in-buffer filtering,
   - rating filter via `minRating`,
-  - follow-up context reuse (e.g. “chỉ lấy trên 4 sao” after a nearby query).
 - Chat response synchronized with map state via second-pass grounded synthesis.
 
 ---
@@ -106,6 +100,7 @@ Open: `http://localhost:3000/maps`
 
 ## 💬 Demo Commands
 
+- `Hà Nội ở đâu trên bản đồ?`
 - `Công ty GTEL OTS ở tỉnh thành nào?`
 - `Tìm bãi gửi xe gần chợ Bến Thành`
 - `Chỉ lấy các bãi gửi xe trên 4 sao`
@@ -116,22 +111,13 @@ Open: `http://localhost:3000/maps`
 
 ## 🧰 Tool Contracts
 
-| Tool | Purpose |
-|---|---|
-| `searchPlace(query)` | Find place with Google Places Text Search and fly map to it |
-| `getDirections(from, to, mode?)` | Draw route with Google Directions API |
-| `nearbySearch(keyword?, type?, location?, radius?, minRating?)` | Nearby places + radius buffer + optional rating filter |
-| `getUserLocation()` | Fly to browser GPS location |
-| `getMapCenter()` | Return current map center + zoom |
-
----
-
-## 🧠 UX Notes
-
-- Chat bubbles prioritize user-facing content; technical execution logs are hidden.
-- Follow-up filtering is map-synced:
-  - If user says “trên 4 sao” after a nearby search, map is re-rendered with filtered markers.
-- If tool data is insufficient, assistant returns a concise uncertainty message instead of overconfident text.
+| Tool                                                            | Purpose                                                     |
+| --------------------------------------------------------------- | ----------------------------------------------------------- |
+| `searchPlace(query)`                                            | Find place with Google Places Text Search and fly map to it |
+| `getDirections(from, to, mode?)`                                | Draw route with Google Directions API                       |
+| `nearbySearch(keyword?, type?, location?, radius?, minRating?)` | Nearby places + radius buffer + optional rating filter      |
+| `getUserLocation()`                                             | Fly to browser GPS location                                 |
+| `getMapCenter()`                                                | Return current map center + zoom                            |
 
 ---
 
@@ -154,6 +140,7 @@ lib/
     constants.ts          ← API URLs, layer IDs, defaults, labels
     state.ts              ← shared mutable map state (markers, nearby context)
     geo.ts                ← pure geo helpers (haversine, polyline decode, buffer, ...)
+    gtel-api.ts           ← GTEL Maps Platform API calls (optional, can be mocked)
     google-api.ts         ← Google Places / Directions API calls
     popup.ts              ← HTML rendering for popups and marker elements
     visuals.ts            ← MapLibre layer/source and marker management

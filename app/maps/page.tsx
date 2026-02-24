@@ -7,9 +7,10 @@
 
 'use client';
 
-import React, { useRef, useCallback } from 'react';
+import React, { useRef, useCallback, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import type { Map as MaplibreMap } from 'maplibre-gl';
+import { fetchProvinces } from '@/lib/map/gtel-api';
 
 // Dynamic imports to avoid SSR issues with MapLibre
 const MapView = dynamic(() => import('@/components/MapView'), {
@@ -27,6 +28,11 @@ const MapCopilot = dynamic(() => import('@/components/MapCopilot'), {
 
 export default function MapsPage() {
   const mapInstanceRef = useRef<MaplibreMap | null>(null);
+
+  // Fetch provinces list on page load for RGHC boundary matching
+  useEffect(() => {
+    fetchProvinces();
+  }, []);
 
   const handleMapReady = useCallback((map: MaplibreMap) => {
     mapInstanceRef.current = map;
