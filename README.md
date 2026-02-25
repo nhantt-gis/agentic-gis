@@ -12,7 +12,7 @@
 ## 🎯 What This Demo Does
 
 GTEL Maps Copilot is an Agentic GIS demo where users can type or speak commands.
-The model does not manipulate the map directly. 
+The model does not manipulate the map directly.
 It selects tools, the frontend executes them on MapLibre, then the assistant returns a user-friendly answer.
 
 ---
@@ -100,12 +100,43 @@ Open: `http://localhost:3000/maps`
 
 ## 💬 Demo Commands
 
-- `Hà Nội ở đâu trên bản đồ?`
-- `Công ty GTEL OTS ở tỉnh thành nào?`
-- `Tìm bãi gửi xe gần chợ Bến Thành`
-- `Chỉ lấy các bãi gửi xe trên 4 sao`
-- `Chỉ đường từ vị trí hiện tại đến sân bay Tân Sơn Nhất bằng xe máy`
-- `Tôi đang ở đâu?`
+### Quick (single command)
+
+1. `Tìm Bitexco`
+2. `Xem ranh giới của Tp Hồ Chí Minh`
+3. `Công ty GTEL OTS ở phường xã nào?`
+4. `Tìm quán cafe cách tôi 500m`
+5. `Chỉ đường từ Bến Thành đến sân bay Tân Sơn Nhất bằng xe buýt`
+
+### Flow (linked commands)
+
+Flow 1:
+
+1. `Tìm bãi đỗ xe gần chợ Bến Thành trong bán kính 500m`
+2. `Chỉ lấy các điểm trên 4 sao`
+3. `Tăng bán kính lên 1km`
+4. `Giữ nguyên khu vực này nhưng đổi sang trung tâm thương mại`
+5. `Lọc lại từ 4.5 sao trở lên`
+
+Flow 2:
+
+1. `Chỉ đường từ Bến xe Bến Thành đến Landmark 81 bằng ô tô`
+2. `Đổi sang di chuyển bằng xe buýt`
+3. `Tìm công viên gần điểm đến`
+4. `Chỉ lấy công viên trên 4 sao`
+
+Flow 3:
+
+1. `Xem ranh giới của Tp Hồ Chí Minh`
+2. `Trong đó, ủy ban nhân dân thành phố đặt tại đâu?`
+3. `Có những địa điểm tham quan nổi tiểng nào gần đó trong bán kính 1km?`
+4. `Chỉ đường từ UBND đến Dinh Độc Lập bằng ô tô`
+
+Flow 4:
+
+1. `Gần tôi có camera giao thông nào không?`
+1. `Chỉ lấy 3 camera gần nhất và xem hình ảnh trực tiếp từ chúng`
+3. `Chỉ đường từ vị trí hiện tại đến vị trí camera gần nhất bằng xe máy`
 
 ---
 
@@ -115,7 +146,7 @@ Open: `http://localhost:3000/maps`
 | --------------------------------------------------------------- | ----------------------------------------------------------- |
 | `searchPlace(query)`                                            | Find place with Google Places Text Search and fly map to it |
 | `getDirections(from, to, mode?)`                                | Draw route with Google Directions API                       |
-| `nearbySearch(keyword?, type?, location?, radius?, minRating?)` | Nearby places + radius buffer + optional rating filter      |
+| `nearbySearch(keyword?, type?, location?, radius?, minRating?, limit?)` | Nearby places + radius buffer + optional rating filter + result limit |
 | `getUserLocation()`                                             | Fly to browser GPS location                                 |
 | `getMapCenter()`                                                | Return current map center + zoom                            |
 
