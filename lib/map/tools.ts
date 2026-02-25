@@ -6,7 +6,6 @@
 import { Map, LngLatBounds } from 'maplibre-gl';
 
 import type { ToolResult, DirectionsMode, NearbyPlaceType } from '@/types';
-import { MAX_NEARBY_MARKERS } from './constants';
 import {
   isCurrentLocationInput,
   getCurrentLocationCoordinates,
@@ -15,7 +14,6 @@ import {
 } from './geo';
 import { textSearch, fetchDirections, fetchNearbyPlaces, type NearbyPlace } from './google-api';
 import { findMatchingProvince, fetchProvinceBoundary, fetchNearbyCameras } from './gtel-api';
-import { mapState } from './map-store';
 import { markerActions } from './marker-store';
 import { layerActions } from './layer-store';
 
@@ -40,6 +38,7 @@ async function resolveNearbySearchCenter(
 }
 
 const CAMERA_KEYWORD_PATTERNS = ['camera', 'camera giao thong', 'cam giao thong', 'traffic camera'];
+const MAX_REQUESTED_NEARBY_RESULTS = 200;
 
 function isCameraNearbyRequest(keyword?: string | null, type?: NearbyPlaceType | null): boolean {
   if (type === 'traffic_camera') return true;
@@ -48,6 +47,22 @@ function isCameraNearbyRequest(keyword?: string | null, type?: NearbyPlaceType |
 
   const normalized = normalizeLocationText(keyword);
   return CAMERA_KEYWORD_PATTERNS.some((pattern) => normalized.includes(pattern));
+}
+
+function normalizeNearbyLimit(limit: unknown): number | null {
+  const numericLimit =
+    typeof limit === 'number'
+      ? limit
+      : typeof limit === 'string' && limit.trim()
+        ? Number(limit)
+        : Number.NaN;
+
+  if (!Number.isFinite(numericLimit)) return null;
+
+  const rounded = Math.floor(numericLimit);
+  if (rounded <= 0) return null;
+
+  return Math.min(MAX_REQUESTED_NEARBY_RESULTS, rounded);
 }
 
 // ── Tool: searchPlace ────────────────────────────────────────────────
@@ -213,6 +228,7 @@ async function nearbySearch(
     radius?: number;
     location?: string;
     minRating?: number;
+    limit?: number;
   },
 ): Promise<ToolResult> {
   const keyword = args.keyword?.trim() || null;
@@ -220,8 +236,9 @@ async function nearbySearch(
 
   const effectiveKeyword = keyword || undefined;
   const effectiveType = type || undefined;
-  const effectiveRadius = args.radius || undefined;
-  const effectiveMinRating = args.minRating || undefined;
+  const effectiveRadius = typeof args.radius === 'number' ? args.radius : undefined;
+  const effectiveMinRating = typeof args.minRating === 'number' ? args.minRating : undefined;
+  const requestedLimit = normalizeNearbyLimit(args.limit);
   const isTrafficCameraSearch = isCameraNearbyRequest(effectiveKeyword, effectiveType);
   const contextType = isTrafficCameraSearch ? 'traffic_camera' : effectiveType || null;
 
@@ -310,15 +327,18 @@ async function nearbySearch(
         keyword: effectiveKeyword || null,
         type: contextType,
         minRating,
+        requestedLimit,
         rawCount,
         filteredOutCount,
         ratingFilteredOutCount,
         totalFound: 0,
+        shown: 0,
+        places: [],
       },
     };
   }
 
-  const visiblePlaces = places.slice(0, MAX_NEARBY_MARKERS);
+  const visiblePlaces = requestedLimit === null ? places : places.slice(0, requestedLimit);
   const bounds = new LngLatBounds(bufferBounds.getSouthWest(), bufferBounds.getNorthEast());
 
   markerActions.setNearbyPlaces(
@@ -349,7 +369,9 @@ async function nearbySearch(
     success: true,
     message:
       `Đã tìm thấy ${places.length} địa điểm lân cận trong bán kính ${radius}m quanh ${center.label}. ` +
-      `Đang hiển thị ${visiblePlaces.length} điểm đầu tiên trên bản đồ.`,
+      (requestedLimit === null
+        ? `Đang hiển thị toàn bộ ${visiblePlaces.length} điểm trên bản đồ.`
+        : `Theo yêu cầu, đang hiển thị ${visiblePlaces.length} điểm trên bản đồ.`),
     data: {
       center,
       radius,
@@ -357,12 +379,13 @@ async function nearbySearch(
       keyword: effectiveKeyword || null,
       type: contextType,
       minRating,
+      requestedLimit,
       rawCount,
       filteredOutCount,
       ratingFilteredOutCount,
       totalFound: places.length,
       shown: visiblePlaces.length,
-      places: visiblePlaces.slice(0, 3).map((place) => ({
+      places: visiblePlaces.map((place) => ({
         name: place.name,
         address: place.address,
         rating: place.rating,
@@ -442,6 +465,7 @@ const TOOL_EXECUTORS: Record<string, ToolExecutor> = {
         radius?: number;
         location?: string;
         minRating?: number;
+        limit?: number;
       },
     ),
   getUserLocation: (map) => getUserLocation(map),

@@ -37,7 +37,6 @@ export const DEFAULT_LANGUAGE = 'vi';
 export const DEFAULT_NEARBY_RADIUS = 1000;
 export const MIN_NEARBY_RADIUS = 100;
 export const MAX_NEARBY_RADIUS = 50000;
-export const MAX_NEARBY_MARKERS = 12;
 
 // ── Geo Constants ────────────────────────────────────────────────────
 

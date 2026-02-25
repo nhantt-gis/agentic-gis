@@ -74,6 +74,7 @@ export const MAP_TOOL_SCHEMAS: ChatCompletionTool[] = [
         'Find nearby places around a location. ' +
         'Uses Google Places Nearby Search for common POIs, and GTEL Maps Nearby Search when searching traffic cameras. ' +
         'Use keyword and/or place type, with optional radius. ' +
+        'Supports optional result count limit via `limit` when user explicitly asks for N results. ' +
         'Supports rating filter with minRating (for example: >= 4 stars). ' +
         'The map should display nearby markers and a radius buffer area. ' +
         'At least one of keyword or type should be provided. ' +
@@ -120,6 +121,12 @@ export const MAP_TOOL_SCHEMAS: ChatCompletionTool[] = [
             type: 'number',
             description:
               'Minimum rating filter from 0 to 5 (e.g. 4 means only places rated 4.0+).',
+          },
+          limit: {
+            type: 'number',
+            description:
+              'Number of results to display when user asks for a specific quantity (e.g. 5 for "tìm 5 quán cafe"). ' +
+              'If user does not ask quantity, omit this field.',
           },
         },
         required: [],
