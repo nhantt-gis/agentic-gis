@@ -217,10 +217,17 @@ export async function fetchDirections(
     currentLocation = await getCurrentLocationCoordinates();
   }
 
-  const resolvedFrom =
-    fromIsCurrent && currentLocation ? `${currentLocation.lat},${currentLocation.lng}` : from;
-  const resolvedTo =
-    toIsCurrent && currentLocation ? `${currentLocation.lat},${currentLocation.lng}` : to;
+  const [resolvedFromPlace, resolvedToPlace] = await Promise.all([
+    fromIsCurrent ? Promise.resolve<ResolvedPlace | null>(null) : textSearch(from),
+    toIsCurrent ? Promise.resolve<ResolvedPlace | null>(null) : textSearch(to),
+  ]);
+
+  const resolvedFrom = fromIsCurrent
+    ? `${currentLocation?.lat},${currentLocation?.lng}`
+    : `${resolvedFromPlace?.lat},${resolvedFromPlace?.lng}`;
+  const resolvedTo = toIsCurrent
+    ? `${currentLocation?.lat},${currentLocation?.lng}`
+    : `${resolvedToPlace?.lat},${resolvedToPlace?.lng}`;
 
   const normalizedMode = normalizeDirectionsMode(mode);
   const googleMode = toGoogleDirectionsMode(normalizedMode);
@@ -264,8 +271,12 @@ export async function fetchDirections(
     distanceMeters: leg.distance?.value ?? null,
     durationText: leg.duration?.text || 'không rõ',
     durationSeconds: leg.duration?.value ?? null,
-    startAddress: fromIsCurrent ? 'Vị trí hiện tại của bạn' : leg.start_address || from,
-    endAddress: toIsCurrent ? 'Vị trí hiện tại của bạn' : leg.end_address || to,
+    startAddress:
+      fromIsCurrent
+        ? 'Vị trí hiện tại của bạn'
+        : leg.start_address || resolvedFromPlace?.address || from,
+    endAddress:
+      toIsCurrent ? 'Vị trí hiện tại của bạn' : leg.end_address || resolvedToPlace?.address || to,
     mode: normalizedMode,
     modeLabel: DIRECTIONS_MODE_LABELS[normalizedMode],
     modeNote:
