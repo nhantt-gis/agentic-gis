@@ -135,6 +135,32 @@ export const MAP_TOOL_SCHEMAS: ChatCompletionTool[] = [
   },
 
   // ──────────────────────────────────────────────
+  // HR / Employee Tools
+  // ──────────────────────────────────────────────
+  {
+    type: 'function',
+    function: {
+      name: 'askHR',
+      description:
+        'Tra cứu thông tin nhân sự công ty GTEL OTS. ' +
+        'Trả lời các câu hỏi về nhân viên, chấm công, phòng ban, chức vụ, giờ làm việc, v.v. ' +
+        'Nếu có tọa độ hoặc địa chỉ chấm công trong kết quả, sẽ hiển thị vị trí trên bản đồ.',
+      parameters: {
+        type: 'object',
+        properties: {
+          question: {
+            type: 'string',
+            description:
+              'Câu hỏi về nhân sự (ví dụ: "Nhân viên A đã chấm công chưa?", ' +
+              '"Thông tin chấm công phòng GIS", "Ai chưa chấm công hôm nay?").',
+          },
+        },
+        required: ['question'],
+      },
+    },
+  },
+
+  // ──────────────────────────────────────────────
   // Map Utilities
   // ──────────────────────────────────────────────
   {

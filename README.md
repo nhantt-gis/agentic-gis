@@ -135,20 +135,29 @@ Flow 3:
 Flow 4:
 
 1. `Gần tôi có camera giao thông nào không?`
-1. `Chỉ lấy 3 camera gần nhất và xem hình ảnh trực tiếp từ chúng`
+2. `Chỉ lấy 3 camera gần nhất và xem hình ảnh trực tiếp từ chúng`
 3. `Chỉ đường từ vị trí hiện tại đến vị trí camera gần nhất bằng xe máy`
+
+Flow 5
+
+1. `Xem trụ sở chính công ty GTEL OTS`
+2. `Công ty GTEL OTS có bao nhiêu nhân viên?`
+3. `Lãnh đạo công ty GTEL OTS gồm những ai?`
+4. `Ai là GIS Team Leader của GTEL OTS?`
+5. `Các thành viên trong team GIS là ai?`
+6. `Hôm nay họ có đi làm không? Đã chấm công chưa? Khi nào? Ở đâu?`
 
 ---
 
 ## 🧰 Tool Contracts
 
-| Tool                                                            | Purpose                                                     |
-| --------------------------------------------------------------- | ----------------------------------------------------------- |
-| `searchPlace(query)`                                            | Find place with Google Places Text Search and fly map to it |
-| `getDirections(from, to, mode?)`                                | Draw route with Google Directions API                       |
+| Tool                                                                    | Purpose                                                               |
+| ----------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| `searchPlace(query)`                                                    | Find place with Google Places Text Search and fly map to it           |
+| `getDirections(from, to, mode?)`                                        | Draw route with Google Directions API                                 |
 | `nearbySearch(keyword?, type?, location?, radius?, minRating?, limit?)` | Nearby places + radius buffer + optional rating filter + result limit |
-| `getUserLocation()`                                             | Fly to browser GPS location                                 |
-| `getMapCenter()`                                                | Return current map center + zoom                            |
+| `getUserLocation()`                                                     | Fly to browser GPS location                                           |
+| `getMapCenter()`                                                        | Return current map center + zoom                                      |
 
 ---
 

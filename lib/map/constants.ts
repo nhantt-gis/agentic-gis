@@ -18,6 +18,7 @@ export const GTEL_MAPS_STYLE_URL = 'https://maps.ots.vn/api/styles/v1/gtelmaps-s
 export const GTEL_ADMIN_PROVINCES_URL = 'https://maps.ots.vn/api/admin-unit/provinces';
 export const GTEL_NEARBY_SEARCH_URL = 'https://maps.ots.vn/api/place/nearby-search';
 export const GTEL_CAMERA_PHOTO_URL = 'https://maps.ots.vn/api/layers/v1/camera_pt';
+export const GTEL_HR_API_URL = 'https://gis-n8n.gtelots.dev/webhook/aef276e1-5e9f-42a6-bf97-f378ba1157df';
 
 // ── Map Layer / Source IDs ───────────────────────────────────────────
 
@@ -76,6 +77,7 @@ export const TOOL_ACTION_LABELS: Record<string, string> = {
   nearbySearch: 'tìm địa điểm lân cận',
   getUserLocation: 'xác định vị trí của bạn',
   getMapCenter: 'lấy tâm bản đồ',
+  askHR: 'tra cứu nhân sự GTEL',
 };
 
 export const GENERIC_PLACE_TYPES = new Set([
