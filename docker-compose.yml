@@ -1,0 +1,18 @@
+version: "3.9"
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    image: agentic-gis:production
+    container_name: agentic-gis-app
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-8289}:3000"
+    environment:
+      NODE_ENV: production
+      NEXT_TELEMETRY_DISABLED: "1"
+    env_file:
+      - .env
