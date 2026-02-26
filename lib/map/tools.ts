@@ -19,7 +19,6 @@ import {
   fetchNearbyCameras,
   fetchHRInfo,
   extractCoordsFromHRResponse,
-  extractAddressFromHRResponse,
 } from './gtel-api';
 import { markerActions } from './marker-store';
 import { layerActions } from './layer-store';
@@ -457,14 +456,11 @@ async function getMapCenter(map: Map): Promise<ToolResult> {
 
 // ── Tool: askHR ──────────────────────────────────────────────────────
 
-async function askHR(
-  map: Map,
-  args: { question: string },
-): Promise<ToolResult> {
+async function askHR(map: Map, args: { question: string }): Promise<ToolResult> {
   const hrResponse = await fetchHRInfo(args.question);
   const responseText = hrResponse.output;
 
-  // 1. Try to extract GPS coordinates from the response
+  // Try to extract GPS coordinates from the response
   const coords = extractCoordsFromHRResponse(responseText);
 
   if (coords.length > 0) {
@@ -517,54 +513,7 @@ async function askHR(
     };
   }
 
-  // 2. No coordinates — try to extract an address and use textSearch
-  const address = extractAddressFromHRResponse(responseText);
-
-  if (address) {
-    try {
-      const location = await textSearch(address);
-
-      layerActions.clearAll();
-      markerActions.clearAll();
-
-      markerActions.setSearchPlace({
-        lngLat: [location.lng, location.lat],
-        color: '#4F46E5',
-        popupData: {
-          name: 'Vị trí chấm công',
-          address: location.address,
-          rating: null,
-          userRatingsTotal: null,
-          distanceMeters: null,
-          types: ['attendance_location'],
-          openNow: null,
-          photoUrl: null,
-        },
-      });
-
-      map.flyTo({
-        center: [location.lng, location.lat],
-        zoom: 16,
-        essential: true,
-        duration: 2000,
-      });
-
-      return {
-        success: true,
-        message: responseText,
-        data: {
-          hrResponse: responseText,
-          attendanceLocations: [{ lat: location.lat, lng: location.lng }],
-          resolvedAddress: location.address,
-          shownOnMap: true,
-        },
-      };
-    } catch {
-      // Address search failed — still return the HR response without map action
-    }
-  }
-
-  // 3. No coordinates and no address — just return the HR response text (no map action)
+  // No coordinates — just return the HR response text (no map action)
   return {
     success: true,
     message: responseText,

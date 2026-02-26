@@ -24,7 +24,7 @@ User (chat/voice)
    ↓
 First AI pass (function calling)
    ↓
-Tool calls (searchPlace / getDirections / nearbySearch / ...)
+Tool calls (searchPlace / getDirections / nearbySearch / askHR / ...)
    ↓
 Frontend executes tools on MapLibre
    ↓
@@ -54,6 +54,10 @@ Second AI pass (responseOnly): summarize final answer from tool outputs
   - strict in-buffer filtering,
   - rating filter via `minRating`,
 - Chat response synchronized with map state via second-pass grounded synthesis.
+- **HR / Employee Info flow** (GTEL OTS internal):
+  - Calls GTEL HR webhook with session-based context (session ID = current date).
+  - Parses GPS coordinates from HR response → pins attendance location on map.
+  - Returns text-only response when no location data is available.
 
 ---
 
@@ -151,13 +155,14 @@ Flow 5
 
 ## 🧰 Tool Contracts
 
-| Tool                                                                    | Purpose                                                               |
-| ----------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| `searchPlace(query)`                                                    | Find place with Google Places Text Search and fly map to it           |
-| `getDirections(from, to, mode?)`                                        | Draw route with Google Directions API                                 |
-| `nearbySearch(keyword?, type?, location?, radius?, minRating?, limit?)` | Nearby places + radius buffer + optional rating filter + result limit |
-| `getUserLocation()`                                                     | Fly to browser GPS location                                           |
-| `getMapCenter()`                                                        | Return current map center + zoom                                      |
+| Tool                                                                    | Purpose                                                                                                               |
+| ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `searchPlace(query)`                                                    | Find place with Google Places Text Search and fly map to it                                                           |
+| `getDirections(from, to, mode?)`                                        | Draw route with Google Directions API                                                                                 |
+| `nearbySearch(keyword?, type?, location?, radius?, minRating?, limit?)` | Nearby places + radius buffer + optional rating filter + result limit                                                 |
+| `getUserLocation()`                                                     | Fly to browser GPS location                                                                                           |
+| `getMapCenter()`                                                        | Return current map center + zoom                                                                                      |
+| `askHR(question)`                                                       | Query GTEL OTS HR system; parse attendance GPS/address from response and pin location on map if available             |
 
 ---
 
@@ -180,11 +185,11 @@ lib/
     constants.ts          ← API URLs, layer IDs, defaults, labels
     state.ts              ← shared mutable map state (markers, nearby context)
     geo.ts                ← pure geo helpers (haversine, polyline decode, buffer, ...)
-    gtel-api.ts           ← GTEL Maps Platform API calls (optional, can be mocked)
+    gtel-api.ts           ← GTEL Maps Platform API calls + HR webhook (fetchHRInfo, extract helpers)
     google-api.ts         ← Google Places / Directions API calls
     popup.ts              ← HTML rendering for popups and marker elements
     visuals.ts            ← MapLibre layer/source and marker management
-    tools.ts              ← tool implementations (searchPlace, getDirections, ...)
+    tools.ts              ← tool implementations (searchPlace, getDirections, askHR, ...)
     index.ts              ← public re-exports for map module
 components/
   MapView.tsx             ← react-map-gl map with controls

@@ -12,6 +12,7 @@ import {
 } from './constants';
 import { haversineDistanceMeters, normalizeNearbyRadius } from './geo';
 import { mapState } from './map-store';
+import { generateId } from '../utils';
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -386,23 +387,12 @@ export function findMatchingProvince(query: string): Province | null {
 
 // ── HR / Employee API ────────────────────────────────────────────────
 
-/**
- * Generate a session ID from the current date (YYYYMMDD format).
- */
-function buildHRSessionId(): string {
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, '0');
-  const d = String(now.getDate()).padStart(2, '0');
-  return `${y}${m}${d}`;
-}
+const sessionId = generateId();
 
 /**
  * Call the GTEL OTS HR API to answer employee / attendance questions.
  */
 export async function fetchHRInfo(question: string): Promise<HRApiResponse> {
-  const sessionId = buildHRSessionId();
-
   const url = new URL(GTEL_HR_API_URL);
   url.searchParams.set('text', question);
   url.searchParams.set('session_id', sessionId);
@@ -448,24 +438,4 @@ export function extractCoordsFromHRResponse(
   }
 
   return coords;
-}
-
-/**
- * Extract a meaningful address from the HR API response text.
- * Looks for "địa chỉ:" or "địa chỉ" patterns followed by the address string.
- * Returns the first address found, or null.
- */
-export function extractAddressFromHRResponse(text: string): string | null {
-  // Match "địa chỉ: <address>" or "địa chỉ <address>" (case-insensitive, with optional ** markdown bold)
-  const addressPattern = /(?:địa\s*chỉ|đ\/c)\s*[:：]\s*\**\s*(.+?)(?:\*\*|\.|\n|$)/i;
-  const match = addressPattern.exec(text);
-  if (match) {
-    const address = match[1]
-      .replace(/\*+/g, '')
-      .replace(/^\s*[:：]\s*/, '')
-      .trim();
-    if (address.length > 5) return address;
-  }
-
-  return null;
 }
