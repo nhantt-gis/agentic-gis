@@ -179,7 +179,7 @@ export async function fetchNearbyCameras(args: {
   const parsed =
     data.data
       .map((item) => ({
-        id: item.id || `traffic-camera-${Math.random().toString(36).slice(2, 8)}`,
+        id: item.id || `traffic-camera-${generateId()}`,
         name: item.displayName?.text || 'Camera giao thông',
         address: item.formattedAddress || item.plusCode?.compoundCode || 'Không có địa chỉ',
         types: item.types || ['traffic_camera'],

@@ -23,6 +23,7 @@ import {
   normalizeMinRating,
   haversineDistanceMeters,
 } from './geo';
+import { generateId } from '../utils';
 
 // ── Google API Response Types ────────────────────────────────────────
 
@@ -331,7 +332,7 @@ export async function fetchNearbyPlaces(args: {
   const parsedPlaces =
     data.results
       ?.map((item) => ({
-        id: item.place_id || `${item.name || 'place'}-${Math.random().toString(36).slice(2, 8)}`,
+        id: item.place_id || `${item.name || 'place'}-${generateId()}`,
         name: item.name || 'Địa điểm',
         address: item.vicinity || item.formatted_address || 'Không có địa chỉ',
         rating: typeof item.rating === 'number' ? item.rating : null,
